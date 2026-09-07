@@ -1,6 +1,6 @@
 # Architecture decisions
 
-Status: the room-only meeting and workshop slices are implemented in the standalone Maven application and `frontend/`. The separately hosted browser prototype remains a UI reference with simulated state.
+Status: meeting/workshop assessment, revisions, manager credit and brief/agenda intake are implemented in the standalone Maven application and `frontend/`. The separately hosted browser prototype remains a UI reference with simulated state.
 
 ## Application stack
 
@@ -15,13 +15,13 @@ Status: the room-only meeting and workshop slices are implemented in the standal
 | Attachments | Local files | Keep the demo self-contained |
 | Loomspan | Locally installed `0.1.0-SNAPSHOT` starter | Framework artifacts are not yet published to Maven |
 
-Use the Spring Boot dependency management baseline compatible with the selected framework checkout. The inspected framework currently specifies Spring Boot 4.1.0 and Spring AI 2.0.0. Do not independently upgrade their managed Hibernate or related libraries without checking compatibility.
+Use the Spring Boot dependency management baseline compatible with the selected framework checkout. The tested framework revision `d202b204ea41a9cfee0364221888df157b469bc3` specifies Spring Boot 4.1.0 and Spring AI 2.0.0. Do not independently upgrade their managed Hibernate or related libraries without checking compatibility.
 
 ## Database lifecycle
 
-Start with `V1__create_schema.sql` and `V2__seed_demo_data.sql`. Flyway applies versioned migrations on startup. Do not also initialize with `schema.sql`, `data.sql`, Hibernate schema creation, or a second seed runner.
+V1/V2 create and seed the base schema; V3–V6 add workshop resources, revisions, manager credits and intake. Flyway applies versioned migrations on startup. Do not also initialize with `schema.sql`, `data.sql`, Hibernate schema creation, or a second seed runner.
 
-The file-backed database lives in an ignored local data directory. Ordinary restarts retain assessments, bookings, and reservations. Provide an explicit reset command for the demo database and attachment fixtures; startup must never silently reset them.
+The file-backed database lives in an ignored local data directory. Ordinary restarts retain assessments, bookings, and reservations. The explicit `scripts/reset-demo.ps1 -ConfirmReset` command resets default business data and app-owned agenda files; startup preserves them.
 
 Migration SQL is committed to source control. Database files, model credentials, runtime attachments, and logs are not. Add later schema changes through new migrations rather than modifying migrations already used by others.
 
@@ -29,9 +29,9 @@ Java skills call application services, which use repositories. Exact pricing, al
 
 ## Independent repository
 
-The completed application will have its own GitHub repository. It must not be a module in the Loomspan framework reactor, inherit the framework's development parent POM, or require an absolute path to the author's checkout.
+The application is a standalone repository, with configured origin `https://github.com/loomspan/loomspan-venue-demo.git`. It must not be a module in the Loomspan framework reactor, inherit the framework's development parent POM, or require an absolute path to the author's checkout.
 
-Proposed source layout:
+Implemented source layout:
 
 ```text
 README.md
@@ -44,7 +44,7 @@ docs/                   scope, scenarios, decisions, implementation stories
 
 The existing `prototype/` is a separately hosted, simulated UI reference with its own Git metadata. Its Sites infrastructure and simulated business logic are not the production frontend architecture. Decide whether to retain it as a reference or archive it before preparing the final GitHub repository; do not accidentally embed its Git repository or publish its runtime/build artifacts.
 
-During development, Vite can proxy API requests to Spring. For a packaged demo, aim to serve the compiled frontend from Spring so users can run a single application process. Node is a build/development dependency, not a required second production server.
+During development, Vite can proxy API requests to Spring. The standard Maven package build includes the compiled frontend in Spring, so users run one application process. Node is a build/development dependency, not a required second production server.
 
 ## Local Loomspan dependency
 
@@ -68,8 +68,8 @@ A full framework `mvn install` also works. Installation populates Maven's config
 
 Record the framework commit used for each tested demo milestone. A SNAPSHOT version alone does not identify an immutable implementation. Until artifacts are published, document the clone-and-install prerequisite for other developers; CI will also need an explicit framework checkout/install step at a selected commit. That is a build prerequisite, not a runtime dependency on a sibling directory.
 
-## Next implementation milestone
+## Current status and remaining release work
 
 Room-only and workshop assessment and booking are implemented. See [workshop-slice.md](workshop-slice.md) for the specialist contracts and migration/booking design. Requirement revisions and stored proposal comparison are implemented; see [revision-slice.md](revision-slice.md). Manager authorization is implemented through a restricted Java skill and simulated demo identities; see [manager-credit-slice.md](manager-credit-slice.md). Brief and PNG/JPEG agenda intake are implemented through a direct YAML skill and a persisted human-review step; see [intake-slice.md](intake-slice.md).
 
-The application has not yet been published to its own GitHub repository. The source layout above is now implemented; framework artifacts are resolved normally from the local Maven repository.
+Framework artifacts resolve normally from the local Maven repository. Fresh-checkout verification, the complete Console rehearsal, CI and distribution review remain tracked in [implementation-plan.md](implementation-plan.md). A configured Git remote does not establish release readiness.

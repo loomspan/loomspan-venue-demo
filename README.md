@@ -1,12 +1,14 @@
-# Loomspan Venue
+# The Annex — Loomspan Venue Demo
 
 A self-contained event operations demo for one venue, built to show how Loomspan combines model-driven planning with deterministic application services.
 
 **Status:** real room-only and workshop assessment and booking are implemented. Workshops combine space, catering and technical specialists into a validated proposal with atomic resource reservations. Unbooked events support confirmed requirement revisions and stored proposal comparison. A manager-only fixed room credit demonstrates authorization. Brief and optional agenda-image intake are implemented with explicit human confirmation. The separate hosted wireframe illustrates the broader concept.
 
+For the complete developer demonstration, follow [the walkthrough](docs/demo-walkthrough.md): intake → workshop → revision → manager credit → booking. It includes the expected totals, code entry points and optional Console inspection.
+
 ## Run the demo
 
-Prerequisites: Java 21+, Node.js 22.13+ (for building the frontend), configured model access, and Loomspan `0.1.0-SNAPSHOT` installed into your local Maven repository. In the framework checkout, run `./mvnw -pl loomspan-spring-boot-starter -am install` (or `mvnw.cmd` on Windows).
+Prerequisites: Java 21+, Node.js 22.13+ (for building the frontend), configured model access, and Loomspan `0.1.0-SNAPSHOT` installed into your local Maven repository. The tested framework commit is `d202b204ea41a9cfee0364221888df157b469bc3`; use that revision for the documented baseline. A later install can replace the same SNAPSHOT coordinates. In the framework checkout, run `./mvnw -pl loomspan-spring-boot-starter -am install` (or `mvnw.cmd` on Windows).
 
 From this project on Windows:
 
@@ -19,7 +21,7 @@ java -jar target/the-annex-0.1.0-SNAPSHOT.jar
 
 On macOS/Linux use `export OPENAI_API_KEY=...`, `export ANNEX_MODEL=gpt-4.1`, and `./mvnw package`. The packaged application serves the React UI at [localhost:8080](http://localhost:8080). No separate frontend server or Docker is required to run the JAR. If `java` is not on PATH, invoke it from your JDK's `bin` directory.
 
-Start with the default **60-person workshop** on October 15, 2026: 50 standard lunches, 10 vegan lunches, presentation and plenary livestream, and a $4,000 budget. Confirm and save, assess with Loomspan, then review the **$2,780 Birch + Cedar proposal** and accept it to reserve all seven resources. The total assumes fresh fixture availability. The **Room-only meeting** selection still demonstrates the $300 Cedar option for 20 people and a $500 budget.
+For a quick assessment-and-booking check, start with the default **60-person workshop** on October 15, 2026: 50 standard lunches, 10 vegan lunches, presentation and plenary livestream, and a $4,000 budget. Confirm and save, assess with Loomspan, then review the **$2,780 Birch + Cedar proposal** and accept it to reserve all seven resources. The total assumes fresh fixture availability. For the complete walkthrough, leave this first proposal unbooked so you can revise it. The **Room-only meeting** selection still demonstrates the $300 Cedar option for 20 people and a $500 budget.
 
 Reservations persist in `data/annex.mv.db`. A booking affects later assessments on the same date. Use another date or explicitly reset for a repeat demonstration. V3–V6 upgrade existing databases and retain prior bookings and requirements.
 
@@ -27,7 +29,7 @@ The demo uses a fixed 13:00–18:00 event block, with 12:30–18:30 room/equipme
 
 The standard Maven build installs frontend dependencies, builds React, and includes the UI in the Spring JAR. No Maven profile is needed. Node.js and npm must be available when building; running the packaged JAR only requires Java and configured model access.
 
-For development, run `./mvnw spring-boot:run` and, separately, `npm ci` then `npm run dev` in `frontend/`. Open the URL printed by Vite (normally `http://localhost:5173`) to use the UI in this mode; port 8080 serves the backend API. Vite proxies `/api` to port 8080. `ANNEX_MODEL_BASE_URL` selects an OpenAI-compatible endpoint; `ANNEX_MODEL` selects its model. `.env.example` documents variables but is not loaded automatically.
+For development, run `./mvnw spring-boot:run` and, separately, `npm ci` then `npm run dev` in `frontend/`. Open the URL printed by Vite (normally `http://localhost:5173`) to use the UI in this mode; port 8080 serves the backend and any previously built static UI. Vite proxies `/api` and `/examples` to port 8080. `ANNEX_MODEL_BASE_URL` selects an OpenAI-compatible endpoint; `ANNEX_MODEL` selects its model. `.env.example` documents variables but is not loaded automatically.
 
 ## Start from a brief and agenda
 
@@ -56,23 +58,13 @@ Ordinary tests use isolated H2 databases and no model calls. The opt-in live tes
 
 To reset the default demo database, stop the application and run `./scripts/reset-demo.ps1 -ConfirmReset` in PowerShell. On other systems, stop it and remove the local `data/annex.mv.db` file and app-owned UUID-named PNG/JPEG files in `data/attachments`. The PowerShell script removes those default files while preserving other files and custom storage locations. Reset removes intake drafts, saved requests and bookings; Flyway recreates the fixtures at startup. It is never performed automatically on ordinary restarts.
 
-Optional Console integration uses `ANNEX_OBSERVABILITY_ENABLED=true` and a separate `ANNEX_OBSERVABILITY_API_KEY` of at least 32 characters. Completed assessments retain a Loomspan session ID. Normal business records remain independent of Console.
+Optional Console integration uses `ANNEX_OBSERVABILITY_ENABLED=true` and a separate `ANNEX_OBSERVABILITY_API_KEY` of at least 32 characters. Completed assessments retain a Loomspan session ID. Successful trace inspection also needs an appropriate persistence policy; see the walkthrough for the `ALWAYS` presentation override. Normal business records remain independent of Console.
 
 ## The application
 
-An employee turns an event request into a feasible proposal using the venue's own rooms, equipment, staff, catering menu, prices, and bookings. The employee can review alternatives, change requirements, compare proposal revisions, and accept an option to create a booking with resource reservations.
+The Annex is a single fictional venue for developers evaluating Loomspan. An employee confirms an event request, reviews one least-cost validated proposal, compares structured requirement revisions and explicitly accepts a booking. Models interpret and plan; Java validates the business rules and performs controlled writes.
 
-The fictional venue is **The Annex**. The demonstration is intended for developers evaluating Loomspan, starting with a clear, lightly styled desktop browser prototype.
-
-> Prepare a proposal for a 60-person customer workshop next Thursday, 1–6 p.m. We need a presentation, two breakout groups, lunch with vegan options, and a livestream. Keep it under $4,000. Here's last year's agenda.
-
-The advisor interprets the brief, selects relevant specialists, checks local records, and produces structured options with exact costs, supporting records, and open questions. Application code validates capacities, availability, prices, permissions, and reservations.
-
-Then change the request:
-
-> Attendance is now 90, and we no longer need the livestream.
-
-The next assessment uses the updated facts. Viewers compare proposals and inspect the actual skill execution in Loomspan Console. The demonstration should show different work as well as different wording.
+The central demonstration moves from a $2,780 workshop to a $3,320 revision, then a manager-approved $100 credit and a $3,220 booking. See [the walkthrough](docs/demo-walkthrough.md) for the exact sequence. Model wording and execution details can vary; the documented fixture rules and totals are checkable.
 
 ## Why this showcases Loomspan
 
@@ -88,19 +80,20 @@ The current app demonstrates planning, specialist hierarchy, Java/YAML compositi
 
 ## Deliberately small
 
-One venue, three rooms, a small equipment inventory, fixed catering packages, a handful of staff, and a short seeded booking calendar. The core UI is an event workspace with proposal options, a resource schedule, and revision comparison.
+One venue, three rooms, a small equipment inventory, fixed catering packages, a handful of staff, and a short seeded booking calendar. The core UI is an event workspace with one proposal per assessment, a resource schedule, and revision comparison.
 
 This is not a production venue management platform. There is no public booking website, payment processing, supplier integration, outbound messaging, CRM, floor-plan editor, or workforce management system. Reference data is seeded; administration screens for every table are outside scope.
 
-Read [the scope and demonstration design](docs/scope-and-demo-design.md) for the product boundary, feature rationale, scenarios, architecture, acceptance criteria, and implementation sequence. That document is the implementation brief; this README is the introduction.
+Documentation:
 
-The [demo walkthrough](docs/demo-walkthrough.md) makes the workshop concrete with venue fixtures, checked quotes, screen states, revision changes, and booking outcomes. It is the content brief for wireframes and implementation stories.
+- [Developer walkthrough](docs/demo-walkthrough.md): runnable presenter script, expected results, optional branches and Console inspection.
+- [Scope and demonstration design](docs/scope-and-demo-design.md): implemented boundaries and intentionally excluded features.
+- [Implementation status](docs/implementation-plan.md): completed slices, recorded validation and remaining release work.
+- [Architecture decisions](docs/architecture-decisions.md): stack, persistence and independent framework dependency.
 
-The clickable wireframe lives in [prototype](prototype/README.md). It covers confirmed intake, simulated assessment, proposal selection, the 90-person revision, comparison, booking, and a stale-availability example. Optional Loomspan notes explain intended framework responsibilities.
+The local `prototype/` directory, when present, is an ignored, separately hosted simulation. Its selectable branches and multiple-option screens are design references, not features of the packaged application or prerequisites for running it.
 
-Three selectable branches also demonstrate a room-only meeting, an unavailable livestream kit followed by an explicitly revised request, and coordinator denial versus manager authorization of a fixed room credit. Each branch uses isolated simulated state.
-
-## Intended setup
+## Stack and repository
 
 - Java 21 / Spring Boot backend with the Loomspan starter and deterministic application services.
 - React + TypeScript + Vite frontend calling Spring REST endpoints.
@@ -111,7 +104,7 @@ Three selectable branches also demonstrate a room-only meeting, an unavailable l
 
 The core demo needs no external business services beyond configured model access.
 
-The completed demo will live in its own GitHub repository, independent of the framework. During development it will consume `ai.loomspan:loomspan-spring-boot-starter:0.1.0-SNAPSHOT` installed into the local Maven repository from the framework checkout. See [architecture decisions](docs/architecture-decisions.md) for the repository boundary and setup plan.
+The demo is structured as a standalone repository, independent of the framework. During development it consumes `ai.loomspan:loomspan-spring-boot-starter:0.1.0-SNAPSHOT` installed into the local Maven repository from the framework checkout. See [architecture decisions](docs/architecture-decisions.md) for the repository boundary and setup plan.
 
 ## Related framework
 
