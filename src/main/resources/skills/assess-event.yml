@@ -1,32 +1,52 @@
 name: assessEvent
-description: Assess a confirmed room-only event and recommend its least expensive feasible room using venue specialists and exact Java validation.
+description: Assess a confirmed meeting or workshop with relevant venue specialists and an exact Java-validated least-cost recommendation.
 model: planner
 planning_mode: true
-max_steps: 5
+concurrency: true
+max_steps: 7
 allowed_skills:
   - name: planEventSpace
     required: true
     max_tasks: 1
+  - name: assessEventCatering
+    max_tasks: 1
+  - name: planEventTechnicalServices
+    max_tasks: 1
   - name: validateRoomQuote
-    required: true
+    max_tasks: 1
+  - name: validateEventQuote
     max_tasks: 1
 prompt: |
-  The application has already confirmed and stored this room-only request.
-  Pass the exact eventId to planEventSpace. Then pass its selected roomId and
-  the same eventId to validateRoomQuote. If no room was selected, omit roomId.
-  These tasks are dependent and must be sequential, never a parallel group.
-  Read actual child results, not anticipated outcomes from the plan. In a quote,
-  check.valid=true means the selected room is feasible at check.totalCents.
-  Recommend only the checked room when the quote check is valid. Copy its
-  integer totalCents exactly. Do not invent resources, discounts, prices or holds.
-  On no candidate or invalid quote, return null roomId and null totalCents,
-  explain the unmet constraints and use openQuestions for possible requirement changes.
-  For a valid option use an empty openQuestions array. Summarize capacity,
-  buffered availability and lowest-cost selection in concise business language.
+  Assess immutable requirements using the exact application-issued eventId.
+  eventType defaults to MEETING when omitted. Never call both quote capabilities.
+  Pass eventType explicitly to planEventSpace as well as eventId. The space planner
+  must know the type before it generates its task list; it cannot wait for tool results.
+  MEETING: plan only planEventSpace, then dependent validateRoomQuote. No catering
+  or technical work. Pass the selected roomId to validateRoomQuote, or omit if none.
+  WORKSHOP: plan planEventSpace and assessEventCatering as consecutive independent
+  tasks in the same parallelGroup named investigations, with no dependency between
+  them. Both are read-only and safe to overlap. Then planEventTechnicalServices
+  dependsOn the space task and uses its selected plenary roomId (omit if none).
+  Finally validateEventQuote dependsOn all specialists and takes the actual
+  roomId, breakoutRoomId and lunchPackageId. Omit missing candidate IDs.
+  Workshop technical work checks stored flags, never adds unrequested services.
+  Only space and catering belong to the parallel group. Technical and quote tasks
+  are ungrouped. Do not invent intake, synthesis or booking capabilities as tasks.
+  Select the least expensive valid room assignment and supported lunch package.
+  Read actual returned records, not anticipated plan outcomes. A returned valid=true
+  with violations=[] is authoritative. Do not discard a valid candidate because a
+  different candidate failed. Java quotes include all required staff and equipment.
+  For a valid quote copy selected IDs and integer totalCents exactly, summarize the
+  allocations and budget headroom, and return empty openQuestions. For a MEETING,
+  breakoutRoomId and lunchPackageId are null. For an invalid/no-candidate quote return
+  null for ALL IDs and totalCents, explain violations and possible requirement
+  changes. Do not invent substitutions or drop requirements to claim feasibility.
+  No resources are held or booked during assessment.
 input_schema:
   type: object
   properties:
     eventId: { type: string }
+    eventType: { type: string, enum: [MEETING, WORKSHOP] }
   required: [eventId]
   additionalProperties: false
 output_schema:
@@ -35,17 +55,19 @@ output_schema:
     roomId:
       type: string
       nullable: true
-      evidence: planEventSpace and validateRoomQuote
+      evidence: planEventSpace and (validateRoomQuote or (assessEventCatering and validateEventQuote))
+    breakoutRoomId: { type: string, nullable: true }
+    lunchPackageId: { type: string, nullable: true }
     totalCents:
       type: integer
       nullable: true
-      evidence: validateRoomQuote
+      evidence: validateRoomQuote or validateEventQuote
     summary:
       type: string
-      evidence: planEventSpace and validateRoomQuote
+      evidence: planEventSpace and (validateRoomQuote or validateEventQuote)
     openQuestions:
       type: array
       items: { type: string }
-  required: [roomId, totalCents, summary, openQuestions]
+  required: [roomId, breakoutRoomId, lunchPackageId, totalCents, summary, openQuestions]
   additionalProperties: false
 output_schema_max_retries: 2

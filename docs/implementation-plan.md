@@ -1,5 +1,7 @@
 # First working slice: room-only meeting
 
+This section records the original slice. The second slice now adds real workshop specialists, quotes and multi-resource booking; see [workshop-slice.md](workshop-slice.md) for its current contracts and validation record. The standard Maven build includes the frontend without a profile.
+
 Implement the real React → REST → Loomspan → Java services → Hibernate/H2 journey before adding workshop services. This slice uses one room and a fixed 13:00–18:00 event block, with reservations covering 12:30–18:30 in America/Los_Angeles. The user supplies an explicit event date, attendance, title, and USD budget. Catering, technical services, credits, and arbitrary schedules are not accepted inputs yet.
 
 ## Stories and acceptance

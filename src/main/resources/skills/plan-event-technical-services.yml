@@ -1,0 +1,31 @@
+name: planEventTechnicalServices
+description: Check required presentation and plenary-only livestream equipment and qualified streaming staff for a selected plenary room.
+model: planner
+planning_mode: false
+max_steps: 3
+allowed_skills:
+  - name: checkEventTechnicalServices
+prompt: |
+  Call checkEventTechnicalServices with the exact eventId and selected roomId.
+  Omit roomId if space was infeasible. Copy valid and totalCents from the result.
+  Explain its actual required allocations and violations. Java uses saved service
+  flags, so absence of livestream correctly means no stream kit or operator.
+  Kits work in all three venue rooms. Stream plenaries only; no breakout equipment.
+  Never substitute another room, invent stock, remove requested services, or book.
+input_schema:
+  type: object
+  properties:
+    eventId: { type: string }
+    roomId: { type: string }
+  required: [eventId]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    valid: { type: boolean, evidence: checkEventTechnicalServices }
+    totalCents: { type: integer, evidence: checkEventTechnicalServices }
+    rationale: { type: string, evidence: checkEventTechnicalServices }
+  required: [valid, totalCents, rationale]
+  additionalProperties: false
+output_schema_max_retries: 2
+

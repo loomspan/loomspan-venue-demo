@@ -2,9 +2,9 @@
 
 A self-contained event operations demo for one venue, built to show how Loomspan combines model-driven planning with deterministic application services.
 
-**Status:** first working slice implemented: a real room-only meeting assessment and booking, plus a separate simulated wireframe of the broader concept. Workshop services, revisions and role-based adjustments remain future slices.
+**Status:** real room-only and workshop assessment and booking are implemented. Workshops combine space, catering and technical specialists into a validated proposal with atomic resource reservations. Attachment intake, revisions and role-based adjustments remain future slices. The separate hosted wireframe illustrates the broader concept.
 
-## Run the working slice
+## Run the demo
 
 Prerequisites: Java 21+, Node.js 22.13+ (for building the frontend), configured model access, and Loomspan `0.1.0-SNAPSHOT` installed into your local Maven repository. In the framework checkout, run `./mvnw -pl loomspan-spring-boot-starter -am install` (or `mvnw.cmd` on Windows).
 
@@ -19,9 +19,11 @@ java -jar target/the-annex-0.1.0-SNAPSHOT.jar
 
 On macOS/Linux use `export OPENAI_API_KEY=...`, `export ANNEX_MODEL=gpt-4.1`, and `./mvnw package`. The packaged application serves the React UI at [localhost:8080](http://localhost:8080). No separate frontend server or Docker is required to run the JAR. If `java` is not on PATH, invoke it from your JDK's `bin` directory.
 
-Create the default 20-person meeting on October 15, 2026 with a $500 budget; confirm and save the request, assess with Loomspan, then accept the $300 Cedar proposal. Reservations persist in `data/annex.mv.db`. Once Cedar is booked for that date, another identical request correctly has no option within $500. Use another date or explicitly reset for a repeat demonstration.
+Start with the default **60-person workshop** on October 15, 2026: 50 standard lunches, 10 vegan lunches, presentation and plenary livestream, and a $4,000 budget. Confirm and save, assess with Loomspan, then review the **$2,780 Birch + Cedar proposal** and accept it to reserve all seven resources. The total assumes fresh fixture availability. The **Room-only meeting** selection still demonstrates the $300 Cedar option for 20 people and a $500 budget.
 
-Only the fixed 13:00–18:00 room-only block is implemented, with 12:30–18:30 reservations including buffers. There is no authentication in this first local-only slice; the server binds to loopback. The manager scenario in the hosted wireframe remains a simulation.
+Reservations persist in `data/annex.mv.db`. A booking affects later assessments on the same date. Use another date or explicitly reset for a repeat demonstration. V3 upgrades existing databases and retains prior room bookings.
+
+The demo uses a fixed 13:00–18:00 event block, with 12:30–18:30 room/equipment/operator reservations and 12:30–13:30 catering reservations. Workshops require two equal breakout groups and lunch counts matching attendance. One least-cost proposal is returned per assessment. There is no authentication yet; the server binds to loopback. The manager scenario in the hosted wireframe remains a simulation. See [the workshop slice](docs/workshop-slice.md) for contracts and acceptance criteria.
 
 The standard Maven build installs frontend dependencies, builds React, and includes the UI in the Spring JAR. No Maven profile is needed. Node.js and npm must be available when building; running the packaged JAR only requires Java and configured model access.
 
@@ -32,11 +34,11 @@ For development, run `./mvnw spring-boot:run` and, separately, `npm ci` then `np
 ```powershell
 .\mvnw.cmd test
 $env:ANNEX_LIVE_TEST = 'true'
-.\mvnw.cmd -Dtest=LiveAssessmentTest test
+.\mvnw.cmd "-Dtest=LiveAssessmentTest,LiveWorkshopTest" test
 Remove-Item Env:ANNEX_LIVE_TEST
 ```
 
-Ordinary tests use isolated H2 databases and no model calls. The opt-in live test uses your configured provider and verifies nested YAML execution, the $300 quote and booking. Backend tests cover reservation races, stale prices, idempotency, input validation, invalid model output and infeasibility. The frontend build checks TypeScript.
+Ordinary tests use isolated H2 databases and no model calls. The opt-in live tests use your configured provider and verify the $300 meeting and $2,780 workshop, nested YAML execution, actual space/catering overlap, and booking. Backend tests cover reservation races, stale prices, idempotency, input validation, invalid model output and infeasibility. The frontend build checks TypeScript.
 
 To reset the default demo database, stop the application and run `./scripts/reset-demo.ps1 -ConfirmReset` in PowerShell. On other systems, stop it and remove only the local `data/annex.mv.db` file. Reset removes saved requests and bookings; Flyway recreates the fixtures at startup. It is never performed automatically on ordinary restarts.
 
@@ -68,7 +70,7 @@ The next assessment uses the updated facts. Viewers compare proposals and inspec
 - **Attachments and model selection:** a supplied agenda adds intake context, using a compatible model when needed.
 - **Authorization and observability:** restricted adjustments, bounded execution, validation failures, and nested traces are inspectable.
 
-These are intended demonstrations, not implemented functionality. Framework details must match the selected Loomspan dependency version.
+The current app demonstrates planning, specialist hierarchy, Java/YAML composition, concurrency, structured results and transactional booking. Attachments, revisions and role-based adjustments remain planned. Framework details must match the selected Loomspan dependency version.
 
 ## Deliberately small
 
@@ -100,4 +102,5 @@ The completed demo will live in its own GitHub repository, independent of the fr
 ## Related framework
 
 [Loomspan Framework](https://github.com/loomspan/loomspan-framework), with the sibling checkout at `../loomspan-framework` used as the current design reference.
+
 

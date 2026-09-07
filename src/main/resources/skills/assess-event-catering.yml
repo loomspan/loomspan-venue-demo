@@ -1,0 +1,28 @@
+name: assessEventCatering
+description: Select the lowest-cost lunch package satisfying confirmed workshop portions, delivery capacity and attendant availability.
+model: planner
+planning_mode: false
+max_steps: 3
+allowed_skills:
+  - name: checkEventCatering
+prompt: |
+  Call checkEventCatering with the exact eventId. Select the package key with
+  valid=true and the smallest totalCents. Returned allocations contain the exact
+  portions charged and the included attendant; Java reads confirmed dietary counts.
+  Drinks never satisfy lunch. Preserve valid candidates across other invalid checks.
+  Return null lunchPackageId if no valid package exists and explain actual violations.
+  Do not alter counts, add unrequested services, invent availability or reserve anything.
+input_schema:
+  type: object
+  properties:
+    eventId: { type: string }
+  required: [eventId]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    lunchPackageId: { type: string, nullable: true, evidence: checkEventCatering }
+    rationale: { type: string, evidence: checkEventCatering }
+  required: [lunchPackageId, rationale]
+  additionalProperties: false
+output_schema_max_retries: 2

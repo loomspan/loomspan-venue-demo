@@ -1,6 +1,6 @@
 # Architecture decisions
 
-Status: the room-only meeting slice is implemented in the standalone Maven application and `frontend/`. The separately hosted browser prototype remains a UI reference with simulated state.
+Status: the room-only meeting and workshop slices are implemented in the standalone Maven application and `frontend/`. The separately hosted browser prototype remains a UI reference with simulated state.
 
 ## Application stack
 
@@ -70,6 +70,7 @@ Record the framework commit used for each tested demo milestone. A SNAPSHOT vers
 
 ## Next implementation milestone
 
-Write acceptance stories and contracts for the room-only meeting slice: seeded rooms → confirmed request → real Loomspan assessment → Java-validated $300 Cedar proposal → accepted booking and persistent reservation. Establish transactional conflict behavior before adding the workshop specialists.
+Room-only and workshop assessment and booking are implemented. See [workshop-slice.md](workshop-slice.md) for the specialist contracts and migration/booking design. Requirement revisions and comparison are the next product milestone; attachment intake and manager authorization remain later work.
 
 The application has not yet been published to its own GitHub repository. The source layout above is now implemented; framework artifacts are resolved normally from the local Maven repository.
+

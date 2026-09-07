@@ -4,19 +4,17 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-public class Booking
+public class ResourceReservation
 {
     @Id
     String id;
-    @Column(unique = true)
-    String proposalId;
-    String roomId;
-    String title;
+    String bookingId;
+    String resourceId;
+    int quantity;
     LocalDateTime startsAt;
     LocalDateTime endsAt;
-    int totalCents;
 
-    protected Booking()
+    protected ResourceReservation()
     {
     }
 }

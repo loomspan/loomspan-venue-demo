@@ -93,4 +93,15 @@ class BookingIntegrationTest {
         var response=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/events")).header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString("{\"title\":\"\",\"eventDate\":\"2026-10-15\",\"attendees\":0,\"budgetCents\":-1}")).build(),HttpResponse.BodyHandlers.ofString());
         assertThat(response.statusCode()).isEqualTo(400);verifyNoInteractions(skills);
     }
+    @Test void rejectedCompletedOutputRetainsDiagnosticSession() {
+        when(skills.invoke(eq("assessEvent"),anyMap(),any())).thenAnswer(call->{
+            java.util.function.Consumer<ai.loomspan.api.SkillExecutionView> observer=call.getArgument(2);
+            observer.accept(new ai.loomspan.api.SkillExecutionView("completed-but-invalid",List.of()));
+            return "{\"roomId\":\"ROOM-C\",\"totalCents\":1,\"summary\":\"Wrong price\",\"openQuestions\":[]}";
+        });
+        var failed=service.assess(event(20,50000).id());
+        assertThat(failed.status()).isEqualTo("FAILED");
+        assertThat(failed.sessionId()).isEqualTo("completed-but-invalid");
+        assertThat(failed.proposal()).isNull();
+    }
 }

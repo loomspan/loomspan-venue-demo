@@ -1,9 +1,9 @@
 # The Annex frontend
 
-Real React + TypeScript + Vite client for the room-only slice. It calls Spring `/api` endpoints; no fixture responses or simulated assessments are used.
+React + TypeScript + Vite client for real meeting and workshop assessment and booking. It calls Spring `/api` endpoints; no simulated assessments are used.
 
-Run Spring on port 8080, then `npm ci` and `npm run dev` here. Vite proxies `/api` to `http://127.0.0.1:8080`. Update `vite.config.ts` if you change the backend port.
+Run Spring on port 8080, then `npm ci` and `npm run dev` here. Open the URL printed by Vite (normally http://localhost:5173). Vite proxies `/api` to `http://127.0.0.1:8080`.
 
-`npm run build` checks TypeScript and creates `dist/`. The root Maven `with-frontend` profile installs, builds and copies these assets into the Spring application JAR.
+`npm run build` checks TypeScript and creates `dist/`. The standard root Maven build installs, builds and copies these assets into the Spring JAR. No profile is required.
 
-The current form intentionally supports one room and a fixed event block. The broader hosted wireframe remains in `prototype/`, outside this application build.
+The form confirms immutable requirements for the fixed event block. Workshops add two equal breakout groups, standard/vegan lunch counts and optional presentation/livestream. Proposals show exact quote lines, supporting versions and resource reservations. The broader simulated wireframe in `prototype/` is outside this application build.
