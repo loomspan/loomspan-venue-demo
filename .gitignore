@@ -1,0 +1,12 @@
+/target/
+/data/
+/frontend/node_modules/
+/frontend/dist/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+/*.tar.gz
+/prototype/
+.idea/

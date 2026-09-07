@@ -1,0 +1,51 @@
+name: assessEvent
+description: Assess a confirmed room-only event and recommend its least expensive feasible room using venue specialists and exact Java validation.
+model: planner
+planning_mode: true
+max_steps: 5
+allowed_skills:
+  - name: planEventSpace
+    required: true
+    max_tasks: 1
+  - name: validateRoomQuote
+    required: true
+    max_tasks: 1
+prompt: |
+  The application has already confirmed and stored this room-only request.
+  Pass the exact eventId to planEventSpace. Then pass its selected roomId and
+  the same eventId to validateRoomQuote. If no room was selected, omit roomId.
+  These tasks are dependent and must be sequential, never a parallel group.
+  Read actual child results, not anticipated outcomes from the plan. In a quote,
+  check.valid=true means the selected room is feasible at check.totalCents.
+  Recommend only the checked room when the quote check is valid. Copy its
+  integer totalCents exactly. Do not invent resources, discounts, prices or holds.
+  On no candidate or invalid quote, return null roomId and null totalCents,
+  explain the unmet constraints and use openQuestions for possible requirement changes.
+  For a valid option use an empty openQuestions array. Summarize capacity,
+  buffered availability and lowest-cost selection in concise business language.
+input_schema:
+  type: object
+  properties:
+    eventId: { type: string }
+  required: [eventId]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    roomId:
+      type: string
+      nullable: true
+      evidence: planEventSpace and validateRoomQuote
+    totalCents:
+      type: integer
+      nullable: true
+      evidence: validateRoomQuote
+    summary:
+      type: string
+      evidence: planEventSpace and validateRoomQuote
+    openQuestions:
+      type: array
+      items: { type: string }
+  required: [roomId, totalCents, summary, openQuestions]
+  additionalProperties: false
+output_schema_max_retries: 2

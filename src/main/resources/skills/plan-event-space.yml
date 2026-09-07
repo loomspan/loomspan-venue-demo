@@ -1,0 +1,47 @@
+name: planEventSpace
+description: Investigate the venue rooms for an immutable event request and select the least expensive room that satisfies attendance, budget and buffered availability.
+model: planner
+planning_mode: true
+max_steps: 7
+allowed_skills:
+  - name: listVenueRooms
+    required: true
+    max_tasks: 1
+  - name: checkRoomAvailability
+    min_tasks: 1
+    max_tasks: 3
+prompt: |
+  Call listVenueRooms with the supplied eventId to read persisted requirements.
+  Choose which rooms need availability checks using capacity and budget facts.
+  Call checkRoomAvailability for candidate rooms, with the exact eventId and roomId.
+  Prefer the lowest priced valid room. A room exactly at capacity is valid.
+  The checkRoomAvailability return value is authoritative: valid=true and
+  violations=[] means that room IS available, fits capacity, and fits budget.
+  Preserve every successful candidate across later checks. A failed check of a
+  different room does not invalidate a previously valid room. Select the cheapest
+  room with valid=true from the actual returned records, even if the last room
+  checked was invalid. Plan titles, task notes and anticipated outcomes are not
+  venue facts. Never describe a valid=true room as unavailable.
+  If the cheapest suitable room is unavailable, investigate the next suitable room.
+  If no room is suitable, check a room to establish its violations, then return
+  null roomId with a grounded explanation. Do not invent other rooms or layouts.
+  Sequential checks are appropriate for this small catalog. No reservations are made.
+input_schema:
+  type: object
+  properties:
+    eventId: { type: string }
+  required: [eventId]
+  additionalProperties: false
+output_schema:
+  type: object
+  properties:
+    roomId:
+      type: string
+      nullable: true
+      evidence: listVenueRooms and checkRoomAvailability
+    rationale:
+      type: string
+      evidence: listVenueRooms and checkRoomAvailability
+  required: [roomId, rationale]
+  additionalProperties: false
+output_schema_max_retries: 2

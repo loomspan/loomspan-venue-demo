@@ -1,0 +1,47 @@
+server:
+  address: 127.0.0.1
+  port: ${ANNEX_PORT:8080}
+spring:
+  application:
+    name: the-annex
+  datasource:
+    url: ${ANNEX_DATABASE_URL:jdbc:h2:file:./data/annex;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000}
+    username: sa
+    password: ''
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  sql:
+    init:
+      mode: never
+loomspan:
+  connections:
+    venue-model:
+      driver: openai
+      base-url: ${ANNEX_MODEL_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY:not-configured}
+      provider-retry:
+        max-attempts: 2
+  models:
+    planner:
+      connection: venue-model
+      provider-model: ${ANNEX_MODEL:gpt-4.1}
+  skills:
+    locations:
+      - classpath:/skills/*.yml
+  session:
+    mission-timeout: 180s
+    max-depth: 4
+    quotas:
+      max-skill-invocations: 24
+      max-tool-invocations: 40
+      max-model-calls: 40
+      max-provider-attempts: 60
+      max-usage-units: 100000
+  observability:
+    enabled: ${ANNEX_OBSERVABILITY_ENABLED:false}
+    auth:
+      api-key: ${ANNEX_OBSERVABILITY_API_KEY:}
+execution-trace:
+  persistence: ONERROR
