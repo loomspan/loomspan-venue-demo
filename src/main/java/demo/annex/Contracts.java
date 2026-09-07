@@ -79,7 +79,8 @@ public final class Contracts
     }
 
     public record EventView(String id, String title, LocalDate eventDate, int attendees, int budgetCents, List<AssessmentView> assessments,
-            String eventType, int standardLunches, int veganLunches, boolean presentation, boolean livestream)
+            String eventType, int standardLunches, int veganLunches, boolean presentation, boolean livestream,
+            String seriesId, int revisionNumber, boolean current)
     {
     }
 

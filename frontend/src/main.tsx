@@ -7,7 +7,7 @@ type Booking = {id:string; roomId:string; title:string; startsAt:string; endsAt:
 type Allocation = {resourceId:string; name:string; kind:string; quantity:number; priceUnits:number; unitPriceCents:number; totalCents:number; version:number; startsAt:string; endsAt:string; assignedRoomId:string|null};
 type Proposal = {id:string; roomId:string; roomName:string; totalCents:number; roomVersion:number; booking:Booking|null; allocations:Allocation[]};
 type Assessment = {id:string; status:string; summary:string; openQuestions:string[]; sessionId:string|null; proposal:Proposal|null};
-type Event = {id:string; title:string; eventDate:string; attendees:number; budgetCents:number; assessments:Assessment[]; eventType:'MEETING'|'WORKSHOP'; standardLunches:number; veganLunches:number; presentation:boolean; livestream:boolean};
+type Event = {id:string; title:string; eventDate:string; attendees:number; budgetCents:number; assessments:Assessment[]; eventType:'MEETING'|'WORKSHOP'; standardLunches:number; veganLunches:number; presentation:boolean; livestream:boolean; seriesId:string; revisionNumber:number; current:boolean};
 type Room = {id:string; name:string; capacity:number; priceCents:number; version:number};
 type Resource = {id:string; name:string; kind:string; stock:number; priceCents:number; version:number};
 type Venue = {name:string; rooms:Room[]; bookings:Booking[]; resources:Resource[]; timezone:string};
@@ -20,8 +20,34 @@ async function api<T>(path:string,body?:unknown):Promise<T> {
   if(!response.ok) throw new Error(data.message||'Request failed');
   return data;
 }
+function RevisionComparison({before,after}:{before:Event;after:Event}) {
+  const oldProposal=before.assessments.find(a=>a.proposal)?.proposal;
+  const newProposal=after.assessments[0]?.proposal;
+  const signed=(c:number)=>(c>0?'+':c<0?'−':'')+money(Math.abs(c));
+  const groups:[string,(a:Allocation)=>boolean][]=[
+    ['Rooms',a=>a.kind==='ROOM'],['Lunch',a=>a.kind==='LUNCH'],
+    ['Presentation kit',a=>a.resourceId==='EQ-PRESENT'],['Livestream kit',a=>a.resourceId==='EQ-STREAM'],
+    ['Streaming operator',a=>a.kind==='STREAM_OPERATOR'],['Catering attendant',a=>a.kind==='CATERING_ATTENDANT']
+  ];
+  const amount=(p:Proposal,match:(a:Allocation)=>boolean)=>p.allocations.length?p.allocations.filter(match).reduce((sum,a)=>sum+a.totalCents,0):match({kind:'ROOM'} as Allocation)?p.totalCents:0;
+  return <section><h2>Compare revisions {before.revisionNumber} → {after.revisionNumber}</h2>
+    <div className="table-wrap"><table><thead><tr><th>Requirement</th><th>Before</th><th>After</th></tr></thead><tbody>
+      <tr><td>Date</td><td>{before.eventDate}</td><td>{after.eventDate}</td></tr>
+      <tr><td>Attendees</td><td>{before.attendees}</td><td>{after.attendees}</td></tr>
+      <tr><td>Standard / vegan lunches</td><td>{before.standardLunches} / {before.veganLunches}</td><td>{after.standardLunches} / {after.veganLunches}</td></tr>
+      <tr><td>Presentation / livestream</td><td>{before.presentation?'Yes':'No'} / {before.livestream?'Yes':'No'}</td><td>{after.presentation?'Yes':'No'} / {after.livestream?'Yes':'No'}</td></tr>
+      <tr><td>Budget</td><td>{money(before.budgetCents)}</td><td>{money(after.budgetCents)}</td></tr>
+    </tbody></table></div>
+    {oldProposal&&newProposal?<><div className="table-wrap"><table><caption>Validated proposal costs</caption><thead><tr><th>Item</th><th>Before</th><th>After</th><th>Change</th></tr></thead><tbody>
+      <tr><td>Room assignment</td><td>{oldProposal.allocations.filter(a=>a.kind==='ROOM').map(a=>a.name).join(' + ')||oldProposal.roomName}</td><td>{newProposal.allocations.filter(a=>a.kind==='ROOM').map(a=>a.name).join(' + ')||newProposal.roomName}</td><td>—</td></tr>
+      {groups.map(([name,match])=><tr key={name}><td>{name}</td><td>{money(amount(oldProposal,match))}</td><td>{money(amount(newProposal,match))}</td><td>{signed(amount(newProposal,match)-amount(oldProposal,match))}</td></tr>)}
+      <tr><th>Total</th><th>{money(oldProposal.totalCents)}</th><th>{money(newProposal.totalCents)}</th><th>{signed(newProposal.totalCents-oldProposal.totalCents)}</th></tr>
+    </tbody></table></div><small>Compares stored quotes, without recalculating historical prices. Earlier proposals are unavailable for acceptance.</small></>:<p className="muted">A validated proposal is needed for both revisions to compare costs. Assess the current revision; earlier results remain in history.</p>}
+  </section>;
+}
 function App() {
   const [venue,setVenue]=useState<Venue|null>(null), [events,setEvents]=useState<Event[]>([]);
+  const [editing,setEditing]=useState(false);
   const [id,setId]=useState(''), [busy,setBusy]=useState(''), [error,setError]=useState('');
   const [eventType,setEventType]=useState<'MEETING'|'WORKSHOP'>('WORKSHOP');
   const [title,setTitle]=useState('Northstar customer workshop'), [date,setDate]=useState('2026-10-15');
@@ -30,6 +56,7 @@ function App() {
   const [presentation,setPresentation]=useState(true), [livestream,setLivestream]=useState(true), [confirmed,setConfirmed]=useState(false);
   const event=events.find(e=>e.id===id), latest=event?.assessments[0], proposal=latest?.proposal;
   const isWorkshop=(event?.eventType||eventType)==='WORKSHOP';
+  const previous=event?events.filter(e=>e.seriesId===event.seriesId&&e.revisionNumber<event.revisionNumber).sort((a,b)=>b.revisionNumber-a.revisionNumber)[0]:undefined;
   const assessing=busy==='Loomspan is assessing this request';
   const invalidWorkshop=eventType==='WORKSHOP'&&(attendees%2!==0||attendees<2||standard+vegan!==attendees||(livestream&&!presentation));
   async function refresh() {
@@ -52,29 +79,29 @@ function App() {
   async function create() {
     await run('Saving request',async()=>{
       const workshop=eventType==='WORKSHOP';
-      const e=await api<Event>('/events',{title,eventDate:date,attendees,budgetCents:Math.round(Number(budget)*100),eventType,
+      const e=await api<Event>(editing?'/events/'+id+'/revisions':'/events',{title,eventDate:date,attendees,budgetCents:Math.round(Number(budget)*100),eventType,
         standardLunches:workshop?standard:0,veganLunches:workshop?vegan:0,presentation:workshop&&presentation,livestream:workshop&&livestream});
-      setId(e.id);
+      setId(e.id);setEditing(false);
     });
   }
   const roomName=(roomId:string)=>venue?.rooms.find(r=>r.id===roomId)?.name||roomId;
   return <>
     <div className="banner">THE ANNEX DEMO <span>Real Loomspan assessment · Hibernate / H2 persistence · local demo</span></div>
-    <header><strong><i>A</i>The Annex</strong><span>Event operations</span><button disabled={!!busy} onClick={()=>{setId('');setConfirmed(false);setError('')}}>New request</button></header>
+    <header><strong><i>A</i>The Annex</strong><span>Event operations</span><button disabled={!!busy} onClick={()=>{setId('');setEditing(false);setConfirmed(false);setError('')}}>New request</button></header>
     <main>
       <div className="heading"><div><p className="eyebrow">EVENT WORKSPACE</p><h1>{event?.title||'Plan an event'}</h1><p className="muted">{isWorkshop?'Two-room workshop · lunch and optional technical services':'Room-only meeting'} · 13:00–18:00 · Pacific time</p></div><button disabled={!!busy} onClick={()=>run('Refreshing',refresh)}>Refresh records</button></div>
       {error&&<div className="error" role="alert">{error}</div>}
       <div className="workspace">
         <aside>
           <section><h2>Confirmed request</h2>
-            {event?<>
+            {event&&!editing?<>
               <dl><dt>Event type</dt><dd>{isWorkshop?'Workshop':'Room-only meeting'}</dd><dt>Date</dt><dd>{event.eventDate}</dd><dt>Attendance</dt><dd>{event.attendees} people{isWorkshop&&` · two groups of ${event.attendees/2}`}</dd><dt>Budget</dt><dd>{money(event.budgetCents)}</dd>
                 {isWorkshop&&<><dt>Lunches</dt><dd>{event.standardLunches} standard + {event.veganLunches} vegan</dd><dt>Technical services</dt><dd>{event.presentation?'Presentation kit':'No presentation kit'}{event.livestream?' + plenary livestream':''}</dd></>}
                 <dt>Room reservation</dt><dd>12:30–18:30</dd></dl>
-              <small>Saved requirements are immutable in this slice. Create a new request to change them.</small>
+              <small>Revision {event.revisionNumber} · {event.current?"Current requirements":"Historical — unavailable for acceptance"}. Earlier requirements and proposals are preserved.</small><button disabled={!!busy||!event.current||event.assessments.some(a=>a.status==="BOOKED"||a.status==="RUNNING")} onClick={()=>{setTitle(event.title);setDate(event.eventDate);setAttendees(event.attendees);setBudget(String(event.budgetCents/100));setEventType(event.eventType);setStandard(event.standardLunches);setVegan(event.veganLunches);setPresentation(event.presentation);setLivestream(event.livestream);setConfirmed(false);setEditing(true)}}>Revise requirements</button>
             </>:<form onSubmit={e=>{e.preventDefault();create()}} onChange={()=>setConfirmed(false)}>
               <fieldset disabled={!!busy}>
-                <label>Event type<select value={eventType} onChange={e=>chooseType(e.target.value as 'MEETING'|'WORKSHOP')}><option value="WORKSHOP">Workshop</option><option value="MEETING">Room-only meeting</option></select></label>
+                <label>Event type<select disabled={editing} value={eventType} onChange={e=>chooseType(e.target.value as 'MEETING'|'WORKSHOP')}><option value="WORKSHOP">Workshop</option><option value="MEETING">Room-only meeting</option></select></label>
                 <label>Event title<input required maxLength={120} value={title} onChange={e=>setTitle(e.target.value)}/></label>
                 <label>Date<input type="date" required value={date} onChange={e=>setDate(e.target.value)}/></label>
                 <label>Attendees<input type="number" required min={isWorkshop?2:1} max={120} step={isWorkshop?2:1} value={attendees} onChange={e=>setAttendees(Number(e.target.value))}/></label>
@@ -91,12 +118,12 @@ function App() {
               </fieldset>
               {invalidWorkshop&&<p className="error">Use an even attendance and meal counts that add up to it.</p>}
               <label className="check"><input type="checkbox" checked={confirmed} onChange={e=>{e.stopPropagation();setConfirmed(e.target.checked)}}/>I confirm these requirements{isWorkshop?', theater seating and the fixed workshop agenda':', with no catering or AV'}.</label>
-              <button className="primary" disabled={!confirmed||invalidWorkshop||!!busy}>Save request</button>
+              <button className="primary" disabled={!confirmed||invalidWorkshop||!!busy}>{editing?"Save new revision":"Save request"}</button>{editing&&<button type="button" disabled={!!busy} onClick={()=>setEditing(false)}>Cancel revision</button>}
             </form>}
           </section>
-          <section><h2>Saved requests</h2>{events.length===0?<p className="muted">No requests yet.</p>:events.map(e=><button className={'request '+(id===e.id?'selected':'')} key={e.id} disabled={!!busy} onClick={()=>setId(e.id)}><b>{e.title}</b><small>{e.eventDate} · {e.attendees} people · {e.assessments[0]?.status||'Not assessed'}</small></button>)}</section>
+          <section><h2>Saved requests</h2>{events.length===0?<p className="muted">No requests yet.</p>:events.filter(e=>e.current).map(e=><button className={'request '+(id===e.id?'selected':'')} key={e.id} disabled={!!busy} onClick={()=>{setId(e.id);setEditing(false)}}><b>{e.title}</b><small>{e.eventDate} · revision {e.revisionNumber} · {e.attendees} people · {e.assessments[0]?.status||'Not assessed'}</small></button>)}</section>
         </aside>
-        <article>
+        <article>{event&&<section><h2>Requirement revisions</h2>{events.filter(e=>e.seriesId===event.seriesId).sort((a,b)=>b.revisionNumber-a.revisionNumber).map(e=><button key={e.id} disabled={!!busy||editing} className={e.id===id?"selected":""} onClick={()=>setId(e.id)}>Revision {e.revisionNumber}{e.current?" · current":" · historical"}</button>)}{!event.current&&<p className="muted">Historical proposals cannot be accepted. Open the current revision to assess or book.</p>}</section>}{event&&previous&&<RevisionComparison before={previous} after={event}/>}
           <section aria-live="polite"><p className="eyebrow">{assessing?'ASSESSING':latest?.status||'ASSESSMENT'}</p><h2>{busy||(latest?.status==='BOOKED'?'Booking saved':latest?.status==='READY'?'A validated event proposal':latest?.status==='NO_OPTION'?'No option meets these requirements':latest?.status==='FAILED'?'Assessment needs attention':'Ready to investigate the venue')}</h2>
             {busy&&<p className="muted">Please wait. Assessment can take a few minutes. Resources are not held until acceptance succeeds.</p>}
             {!event?<p className="muted">Confirm and save the request to begin a real assessment.</p>:<>
@@ -111,10 +138,10 @@ function App() {
                   {proposal.allocations.length?proposal.allocations.map(a=><p key={a.resourceId}><b>{a.resourceId}</b> · version {a.version} · quantity {a.quantity}<br/>{interval(a.startsAt,a.endsAt)}{a.assignedRoomId&&a.kind!=='ROOM'&&` · ${roomName(a.assignedRoomId)}`}</p>):<p>{proposal.roomId} · room version {proposal.roomVersion} · {event.eventDate} · 12:30–18:30.</p>}
                   <p>Acceptance rechecks all selected resources under database locks. A conflict saves no partial booking.</p>
                 </details>
-                {proposal.booking?<p className="success">Booking {proposal.booking.id} is persisted. Refreshing or restarting retains it.</p>:<button className="primary" disabled={!!busy||latest?.status!=='READY'} onClick={()=>run('Reserving resources',async()=>{await api('/proposals/'+proposal.id+'/accept',{})})}>Accept & reserve {isWorkshop?'all resources':'room'}</button>}
+                {proposal.booking?<p className="success">Booking {proposal.booking.id} is persisted. Refreshing or restarting retains it.</p>:<button className="primary" disabled={!!busy||editing||!event.current||latest?.status!=='READY'} onClick={()=>run('Reserving resources',async()=>{await api('/proposals/'+proposal.id+'/accept',{})})}>Accept & reserve {isWorkshop?'all resources':'room'}</button>}
               </div>}
               {latest?.sessionId&&<small className="session">Loomspan session: {latest.sessionId}</small>}
-              <button disabled={!!busy||latest?.status==='BOOKED'||latest?.status==='RUNNING'} onClick={()=>run('Loomspan is assessing this request',async()=>{await api('/events/'+id+'/assessments',{})})}>{latest?'Run fresh assessment':'Assess with Loomspan'}</button>
+              <button disabled={!!busy||editing||!event.current||latest?.status==='BOOKED'||latest?.status==='RUNNING'} onClick={()=>run('Loomspan is assessing this request',async()=>{await api('/events/'+id+'/assessments',{})})}>{latest?'Run fresh assessment':'Assess with Loomspan'}</button>
             </>}
           </section>
           {isWorkshop&&<section><h2>Confirmed workshop agenda</h2><div className="schedule"><div><b>13:00–13:30</b><span>Boxed lunch and welcome</span></div><div><b>13:30–15:00</b><span>Plenary presentation</span></div><div><b>15:00–15:15</b><span>Break</span></div><div><b>15:15–16:15</b><span>Two equal discussion groups · no AV</span></div><div><b>16:15–16:30</b><span>Break</span></div><div><b>16:30–18:00</b><span>Plenary Q&A</span></div></div></section>}
@@ -125,9 +152,10 @@ function App() {
           <section><h2>Reservation schedule</h2><p className="muted">Includes setup and teardown · {venue?.timezone||'America/Los_Angeles'}</p><div className="schedule">{venue?.bookings.map(b=><div key={b.id}><b>{b.title}</b>{b.reservations.map(r=><span key={r.resourceId}>{r.name} · quantity {r.quantity}<small>{interval(r.startsAt,r.endsAt)}</small></span>)}</div>)}</div></section>
         </article>
       </div>
-      <footer>Real meeting and workshop assessment and booking. Revisions, attachment intake and manager adjustments remain future slices.</footer>
+      <footer>Real meeting and workshop assessment and booking. Requirement revisions preserve proposal history. Attachment intake and manager adjustments remain future slices.</footer>
     </main>
   </>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);
+
 

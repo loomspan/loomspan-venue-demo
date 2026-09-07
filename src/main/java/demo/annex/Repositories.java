@@ -18,6 +18,7 @@ interface RoomRepository extends JpaRepository<Room, String>
 interface EventRepository extends JpaRepository<EventRequest, String>
 {
     List<EventRequest> findAllByOrderByCreatedAtDesc();
+    List<EventRequest> findBySeriesIdOrderByRevisionNumberDesc(String seriesId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from EventRequest e where e.id = :id")
@@ -48,6 +49,8 @@ interface BookingRepository extends JpaRepository<Booking, String>
 
     @Query("select b from Booking b, Proposal p, Assessment a where b.proposalId=p.id and p.assessmentId=a.id and a.eventId=:eventId")
     List<Booking> findForEvent(@Param("eventId") String eventId);
+    @Query("select b from Booking b, Proposal p, Assessment a, EventRequest e where b.proposalId=p.id and p.assessmentId=a.id and a.eventId=e.id and e.seriesId=:seriesId")
+    List<Booking> findForSeries(@Param("seriesId") String seriesId);
 
     @Query("select count(b) from ResourceReservation b where b.resourceId = :room and b.startsAt < :end and b.endsAt > :start")
     long conflicts(@Param("room") String room, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

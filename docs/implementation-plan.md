@@ -49,3 +49,5 @@ The development database may contain this verification request and its failed/su
 
 The packaged application was restarted after the HTTP booking: the same booking ID remained present, both seed reservations remained intact, and Flyway reported the schema up to date with no migrations reapplied. The packaged frontend and venue endpoint returned HTTP 200.
 
+
+The third slice implements revisions for unbooked events, stored cost comparison, and stale-proposal/concurrent-booking guards. See [revision-slice.md](revision-slice.md).

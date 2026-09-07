@@ -47,6 +47,15 @@ public class EventStore
 
     public EventView create(CreateEvent input)
     {
+        EventRequest e = newRequest(input);
+        e.seriesId = e.id;
+        e.revisionNumber = 1;
+        events.save(e);
+        return view(e);
+    }
+
+    private EventRequest newRequest(CreateEvent input)
+    {
         String type = input.eventType() == null ? "MEETING" : input.eventType();
         if (!Set.of("MEETING", "WORKSHOP").contains(type))
             throw new ResponseStatusException(BAD_REQUEST, "Unknown event type");
@@ -73,13 +82,39 @@ public class EventStore
         e.veganLunches = input.veganLunches();
         e.presentation = input.presentation();
         e.livestream = input.livestream();
-        events.save(e);
-        return view(e);
+        return e;
+    }
+
+    public EventView revise(String eventId, CreateEvent input)
+    {
+        EventRequest previous = lockCurrent(eventId);
+        if (!bookings.findForSeries(previous.seriesId).isEmpty())
+            throw new ResponseStatusException(CONFLICT, "Booked events cannot be revised in this demo.");
+        if (assessments.findByEventIdOrderByCreatedAtDesc(eventId).stream().anyMatch(a -> a.status.equals("RUNNING")))
+            throw new ResponseStatusException(CONFLICT, "Wait for the running assessment before revising requirements.");
+        EventRequest next = newRequest(input);
+        if (!previous.eventType.equals(next.eventType))
+            throw new ResponseStatusException(BAD_REQUEST, "A revision must retain the event type. Create a new event to change it.");
+        next.seriesId = previous.seriesId;
+        next.revisionNumber = previous.revisionNumber + 1;
+        events.saveAndFlush(next);
+        return view(next);
+    }
+
+    // Revision creation, assessment admission and booking serialize on the original request.
+    // Each revision's requirements stay immutable, including while model tools read them.
+    private EventRequest lockCurrent(String eventId)
+    {
+        EventRequest requested = events.findById(eventId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
+        events.lockById(requested.seriesId).orElseThrow();
+        if (!events.findBySeriesIdOrderByRevisionNumberDesc(requested.seriesId).getFirst().id.equals(eventId))
+            throw new ResponseStatusException(CONFLICT, "This requirement revision is outdated. Open the current revision.");
+        return requested;
     }
 
     public AssessmentView begin(String eventId)
     {
-        events.lockById(eventId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
+        lockCurrent(eventId);
         if (!bookings.findForEvent(eventId).isEmpty())
             throw new ResponseStatusException(CONFLICT, "This event is already booked");
         if (assessments.findByEventIdOrderByCreatedAtDesc(eventId).stream().anyMatch(a -> a.status.equals("RUNNING")))
@@ -97,6 +132,8 @@ public class EventStore
 
     public AssessmentView complete(String assessmentId, ModelResult result, String sessionId)
     {
+        Assessment initial = assessments.findById(assessmentId).orElseThrow();
+        lockCurrent(initial.eventId);
         Assessment a = assessments.lockById(assessmentId).orElseThrow();
         if (!a.status.equals("RUNNING"))
             throw new IllegalStateException("Assessment is no longer running");
@@ -214,7 +251,7 @@ public class EventStore
     {
         Proposal p = proposals.findById(proposalId).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Proposal not found"));
         Assessment initial = assessments.findById(p.assessmentId).orElseThrow();
-        EventRequest event = events.lockById(initial.eventId).orElseThrow();
+        EventRequest event = lockCurrent(initial.eventId);
         Assessment a = assessments.lockById(p.assessmentId).orElseThrow();
         var existing = bookings.findByProposalId(p.id);
         if (existing.isPresent())
@@ -286,7 +323,8 @@ public class EventStore
 
     private EventView view(EventRequest e)
     {
-        return new EventView(e.id, e.title, e.eventDate, e.attendees, e.budgetCents, assessments.findByEventIdOrderByCreatedAtDesc(e.id).stream().map(this::view).toList(), e.eventType, e.standardLunches, e.veganLunches, e.presentation, e.livestream);
+        return new EventView(e.id, e.title, e.eventDate, e.attendees, e.budgetCents, assessments.findByEventIdOrderByCreatedAtDesc(e.id).stream().map(this::view).toList(), e.eventType, e.standardLunches, e.veganLunches, e.presentation, e.livestream,
+            e.seriesId, e.revisionNumber, events.findBySeriesIdOrderByRevisionNumberDesc(e.seriesId).getFirst().id.equals(e.id));
     }
 
     private AssessmentView view(Assessment a)

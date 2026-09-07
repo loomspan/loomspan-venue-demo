@@ -44,6 +44,12 @@ public class ApiController
         return assessment.assess(id);
     }
 
+    @PostMapping("/events/{id}/revisions")
+    public EventView revise(@PathVariable String id, @Valid @RequestBody CreateEvent input)
+    {
+        return store.revise(id, input);
+    }
+
     @PostMapping("/proposals/{id}/accept")
     public BookingView accept(@PathVariable String id)
     {

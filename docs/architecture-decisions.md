@@ -70,7 +70,8 @@ Record the framework commit used for each tested demo milestone. A SNAPSHOT vers
 
 ## Next implementation milestone
 
-Room-only and workshop assessment and booking are implemented. See [workshop-slice.md](workshop-slice.md) for the specialist contracts and migration/booking design. Requirement revisions and comparison are the next product milestone; attachment intake and manager authorization remain later work.
+Room-only and workshop assessment and booking are implemented. See [workshop-slice.md](workshop-slice.md) for the specialist contracts and migration/booking design. Requirement revisions and stored proposal comparison are implemented; see [revision-slice.md](revision-slice.md). Attachment intake and manager authorization remain later work.
 
 The application has not yet been published to its own GitHub repository. The source layout above is now implemented; framework artifacts are resolved normally from the local Maven repository.
+
 

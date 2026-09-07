@@ -2,7 +2,7 @@
 
 A self-contained event operations demo for one venue, built to show how Loomspan combines model-driven planning with deterministic application services.
 
-**Status:** real room-only and workshop assessment and booking are implemented. Workshops combine space, catering and technical specialists into a validated proposal with atomic resource reservations. Attachment intake, revisions and role-based adjustments remain future slices. The separate hosted wireframe illustrates the broader concept.
+**Status:** real room-only and workshop assessment and booking are implemented. Workshops combine space, catering and technical specialists into a validated proposal with atomic resource reservations. Unbooked events support confirmed requirement revisions and stored proposal comparison. Attachment intake and role-based adjustments remain future slices. The separate hosted wireframe illustrates the broader concept.
 
 ## Run the demo
 
@@ -21,7 +21,7 @@ On macOS/Linux use `export OPENAI_API_KEY=...`, `export ANNEX_MODEL=gpt-4.1`, an
 
 Start with the default **60-person workshop** on October 15, 2026: 50 standard lunches, 10 vegan lunches, presentation and plenary livestream, and a $4,000 budget. Confirm and save, assess with Loomspan, then review the **$2,780 Birch + Cedar proposal** and accept it to reserve all seven resources. The total assumes fresh fixture availability. The **Room-only meeting** selection still demonstrates the $300 Cedar option for 20 people and a $500 budget.
 
-Reservations persist in `data/annex.mv.db`. A booking affects later assessments on the same date. Use another date or explicitly reset for a repeat demonstration. V3 upgrades existing databases and retains prior room bookings.
+Reservations persist in `data/annex.mv.db`. A booking affects later assessments on the same date. Use another date or explicitly reset for a repeat demonstration. V3/V4 upgrade existing databases and retain prior bookings and requirements.
 
 The demo uses a fixed 13:00–18:00 event block, with 12:30–18:30 room/equipment/operator reservations and 12:30–13:30 catering reservations. Workshops require two equal breakout groups and lunch counts matching attendance. One least-cost proposal is returned per assessment. There is no authentication yet; the server binds to loopback. The manager scenario in the hosted wireframe remains a simulation. See [the workshop slice](docs/workshop-slice.md) for contracts and acceptance criteria.
 
@@ -29,12 +29,16 @@ The standard Maven build installs frontend dependencies, builds React, and inclu
 
 For development, run `./mvnw spring-boot:run` and, separately, `npm ci` then `npm run dev` in `frontend/`. Open the URL printed by Vite (normally `http://localhost:5173`) to use the UI in this mode; port 8080 serves the backend API. Vite proxies `/api` to port 8080. `ANNEX_MODEL_BASE_URL` selects an OpenAI-compatible endpoint; `ANNEX_MODEL` selects its model. `.env.example` documents variables but is not loaded automatically.
 
+## Revise an unbooked workshop
+
+Before accepting the 60-person proposal, choose **Revise requirements**, change attendance to 90, lunch counts to 75 standard / 15 vegan, and clear livestream. Confirm and save, then assess again. The comparison shows **$2,780 → $3,320 (+$540)** and the change from Birch + Cedar to Alder + Birch. Historical proposals cannot be accepted. Booked events cannot be revised. See [the revision slice](docs/revision-slice.md) for scope and concurrency rules.
+
 ## Tests and reset
 
 ```powershell
 .\mvnw.cmd test
 $env:ANNEX_LIVE_TEST = 'true'
-.\mvnw.cmd "-Dtest=LiveAssessmentTest,LiveWorkshopTest" test
+.\mvnw.cmd "-Dtest=LiveAssessmentTest,LiveWorkshopTest,LiveRevisionTest" test
 Remove-Item Env:ANNEX_LIVE_TEST
 ```
 
@@ -70,7 +74,7 @@ The next assessment uses the updated facts. Viewers compare proposals and inspec
 - **Attachments and model selection:** a supplied agenda adds intake context, using a compatible model when needed.
 - **Authorization and observability:** restricted adjustments, bounded execution, validation failures, and nested traces are inspectable.
 
-The current app demonstrates planning, specialist hierarchy, Java/YAML composition, concurrency, structured results and transactional booking. Attachments, revisions and role-based adjustments remain planned. Framework details must match the selected Loomspan dependency version.
+The current app demonstrates planning, specialist hierarchy, Java/YAML composition, concurrency, structured results and transactional booking. Attachments and role-based adjustments remain planned. Framework details must match the selected Loomspan dependency version.
 
 ## Deliberately small
 
@@ -102,5 +106,6 @@ The completed demo will live in its own GitHub repository, independent of the fr
 ## Related framework
 
 [Loomspan Framework](https://github.com/loomspan/loomspan-framework), with the sibling checkout at `../loomspan-framework` used as the current design reference.
+
 
 

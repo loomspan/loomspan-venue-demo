@@ -8,6 +8,8 @@ public class EventRequest
 {
     @Id
     String id;
+    String seriesId;
+    int revisionNumber;
     String title;
     LocalDate eventDate;
     int attendees;

@@ -2,7 +2,7 @@
 
 ## Purpose and status
 
-This is the concrete content brief for wireframes, seed data, and implementation stories. It specifies the broader intended behavior. The room-only meeting and the confirmed workshop now have real application implementations, each returning one least-cost proposal. Alternative cards, revisions, attachment intake and the generated agenda asset remain future work. Prices and venue rules below are fictional demo fixtures, not market estimates.
+This is the concrete content brief for wireframes, seed data, and implementation stories. It specifies the broader intended behavior. The room-only meeting and the confirmed workshop now have real application implementations, each returning one least-cost proposal. Confirmed requirement revisions and proposal comparison are implemented. Alternative cards, attachment intake and the generated agenda asset remain future work. Prices and venue rules below are fictional demo fixtures, not market estimates.
 
 Read this with [scope and demonstration design](scope-and-demo-design.md). The main demonstration is one event request, two assessments, and one booking. Side branches exercise failure and permission states without expanding the product lifecycle.
 
@@ -242,5 +242,6 @@ Wireframes should cover confirmed intake, clarification, assessment in progress,
 Deterministic checks should verify the reference allocations, totals, capacity limits, boundary intervals, credits, and transaction behavior. Live model smoke checks should verify relevant specialist selection, a useful nested space plan, grounded structured results, and actual overlap when demonstrating concurrency. Neither a scripted trace nor exact model wording is an acceptance requirement.
 
 This walkthrough settles fixture choices for the central story. It does not select frontend technology, finalize API schemas, create skill manifests, or establish that a model configuration has passed live testing.
+
 
 
