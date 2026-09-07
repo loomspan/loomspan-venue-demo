@@ -1,0 +1,38 @@
+# Working slice 05: brief and agenda intake
+
+Intake adds one direct YAML skill, `interpretEventBrief`, before the existing confirmation and assessment flow. It demonstrates Loomspan attachment inputs, independently configured model selection, nullable structured output and human review. The skill has no child tools and cannot create events, assess availability, book resources or approve credits.
+
+## Walkthrough
+
+1. Choose **New request**. The brief asks for a 60-person workshop “next Thursday,” presentation, two breakout groups, lunch with vegan options, livestream and a $4,000 budget. The visible reference date is October 8, 2026, in Pacific time.
+2. Choose **Use example agenda** or upload one PNG/JPEG image, up to 2 MB and 16 megapixels. The included historical agenda has 40 attendees and 35 standard/5 vegan lunches, deliberately different from the current request.
+3. Choose **Interpret with Loomspan**. The expected draft resolves next Thursday to October 15, 2026, keeps current attendance at 60 and leaves current meal counts blank. Its agenda summary should mention the actual product-roadmap presentation and customer Q&A from the image.
+4. Review the source preview and interpretation notes. Enter 50 standard and 10 vegan lunches. Verify the extracted date, budget, event type and technical services, then explicitly confirm the fixed supported requirements and save.
+5. Assess and book through the existing workshop flow. Fresh fixture availability produces the $2,780 proposal. The original intake remains visible alongside confirmed requirements and subsequent revisions; revisions do not reinterpret the attachment.
+
+The form also works without model intake. A brief without an agenda invokes the same YAML skill with its optional attachment input omitted. Uncertain technical choices require explicit yes/no selection during intake review; unknown scalar requirements stay blank. Human confirmation resolves interpretation notes and accepts the fixed supported scope. Model interpretation does not establish business correctness.
+
+## Application boundary
+
+- `POST /api/intakes` accepts multipart `brief`, `referenceDate` and optional `agenda`. The brief is limited to 6,000 characters. The application validates uploaded image content and size before model invocation, stores it under a server-generated UUID, and supplies a repeatable Spring `FileSystemResource` through the public `SkillTemplate` map overload.
+- The YAML input declares `agenda` as an image attachment allowing PNG/JPEG. This is real multimodal input; the application does not OCR the image or paste extracted text in place of the attachment. No Loomspan internal Java APIs are used.
+- The separate `intake` model alias uses `ANNEX_INTAKE_MODEL`, defaulting to `gpt-4.1`, on the existing named model connection. It can differ from `ANNEX_MODEL` used by assessment. A replacement must support image input and the configured provider protocol.
+- Loomspan enforces the closed output schema and bounded schema retries. Nullable fields preserve unknowns. Java additionally validates dates, ranges, output lengths and missing/count-mismatch notes. Workshop meal counts require matching explicit numeric wording in the current brief (for example, `50 standard lunches` and `10 vegan lunches`); otherwise Java clears the proposed counts for human review. Spelled-out or ambiguous meal quantities can be entered in the review form. Source content is untrusted and has no authority to change roles or invoke capabilities.
+- V6 stores the source brief, explicit reference date, original interpretation, status, attachment metadata, completion session reference and eventual event link. Files live under `data/attachments` by default, configurable through `annex.attachments-directory`. The source result remains immutable when the user corrects and confirms requirements.
+- `GET /api/intakes` lists saved drafts and sources. `GET /api/intakes/{id}/agenda` serves only the corresponding stored image. No caller-supplied filesystem path or remote URL is accepted. Drafts can be reopened after refresh. Reinterpreting submits a new draft using the brief and selected upload; it does not mutate earlier interpretations.
+- `POST /api/intakes/{id}/confirm` validates a full `CreateEvent` body and creates the event with its source link in one transaction, under a draft lock. Repeated confirmation returns the same event. Failed or running drafts cannot be confirmed. This does not run assessment or reserve resources.
+- Provider/output failures remain failed intake records with a safe retry message and no event. A session reference is available only if the facade completed and called its observer. Restart marks interrupted running intake drafts failed. Revisions remain confirmed structured edits, preserving the original intake for reference.
+
+## Keep the demo contained
+
+One image and one brief per intake. No PDF/Word ingestion, OCR pipeline, chat loop, attachment library, arbitrary agenda scheduling, generated run sheet, external file retrieval or document administration. The uploaded historical agenda is context; the fixed workshop schedule still controls reservations. PNG/JPEG is a deliberate sample-app boundary, not a claim that Loomspan supports only those formats.
+
+The demo has selectable local identities, not production authentication. Source briefs and agenda images are sent to the configured model provider. Uploaded files and database records are ignored local data. For a clean reset, stop the app and run `scripts/reset-demo.ps1 -ConfirmReset`. It removes the named default H2 files and UUID-named PNG/JPEG files directly inside `data/attachments`, without recursion; it rejects linked data directories and leaves unrelated files and custom storage locations alone. Startup preserves data; no automatic destructive reset is added.
+
+## Validation record
+
+The standard package build passed with 41 ordinary tests and five opt-in live tests skipped. Seven intake integration tests cover missing and invented counts, confirmation validation/idempotency, image validation and serving, repeatable resources with server-owned paths, malformed model output, provider failure and interrupted-draft recovery. The isolated reset-script check removed its fixture database and app image while preserving an unrelated file.
+
+Both `LiveIntakeTest` cases passed using `gpt-4.1` and framework commit `d202b204ea41a9cfee0364221888df157b469bc3`: brief-only meeting extraction, and actual agenda-image interpretation with the relative date resolved and current meal counts left unknown. Early live runs exposed an overly generic agenda summary and inferred historical meal counts. The final prompt preserves visible session titles/times, and Java independently requires explicit numeric dietary counts in the current brief. These checks do not replace human review of model interpretations.
+
+Browser verification used port 8084, `target/intake-ui-check` and `target/intake-ui-attachments`. It exercised the example image, missing lunch counts, editable technical choices, explicit confirmation, real workshop assessment and the $2,780 seven-resource booking. The source image preview and review layout were visually inspected. Restart retained the source brief/image, original unknown counts, corrected 50/10 requirements, source link, execution reference and the same booking. A subsequent interpretation displayed the image's actual product-roadmap and customer-Q&A titles. The verification server was stopped and the packaged JAR rebuilt; the normal demo database and attachments were not used for verification.

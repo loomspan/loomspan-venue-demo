@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './style.css';
+import {IntakeSource, type Intake} from './intake';
 
 type Reservation = {resourceId:string; name:string; quantity:number; startsAt:string; endsAt:string};
 type Booking = {id:string; roomId:string; title:string; startsAt:string; endsAt:string; totalCents:number; reservations:Reservation[]};
@@ -16,7 +17,7 @@ const money = (c:number) => new Intl.NumberFormat('en-US',{style:'currency',curr
 const interval = (start:string,end:string) => `${start.replace('T',' ')} → ${end.slice(11,16)}`;
 let demoIdentity='alex';
 async function api<T>(path:string,body?:unknown):Promise<T> {
-  const response = await fetch('/api'+path,body===undefined?undefined:{method:'POST',headers:{'Content-Type':'application/json','X-Annex-Demo-User':demoIdentity},body:JSON.stringify(body)});
+  const response = await fetch('/api'+path,body===undefined?undefined:{method:'POST',headers:body instanceof FormData?{'X-Annex-Demo-User':demoIdentity}:{'Content-Type':'application/json','X-Annex-Demo-User':demoIdentity},body:body instanceof FormData?body:JSON.stringify(body)});
   let data;
   try {data=await response.json()} catch {throw new Error('The server returned an unreadable response. Check that Spring is running.')}
   if(!response.ok) throw new Error(data.message||'Request failed');
@@ -48,23 +49,28 @@ function RevisionComparison({before,after}:{before:Event;after:Event}) {
   </section>;
 }
 function App() {
+  const [intakes,setIntakes]=useState<Intake[]>([]),[intake,setIntake]=useState<Intake|null>(null);
+  const [brief,setBrief]=useState('Prepare a 60-person Northstar customer workshop next Thursday, 1–6 p.m., with two equal breakout groups, presentation, lunch with vegan options, and a livestream. Budget $4,000. Use last year’s agenda as reference only.');
+  const [referenceDate,setReferenceDate]=useState('2026-10-08'),[agenda,setAgenda]=useState<File|null>(null);
   const [venue,setVenue]=useState<Venue|null>(null), [events,setEvents]=useState<Event[]>([]);
   const [identity,setIdentity]=useState('alex'),[creditSession,setCreditSession]=useState<{proposalId:string;sessionId:string}|null>(null);
   const [editing,setEditing]=useState(false);
   const [id,setId]=useState(''), [busy,setBusy]=useState(''), [error,setError]=useState('');
-  const [eventType,setEventType]=useState<'MEETING'|'WORKSHOP'>('WORKSHOP');
+  const [eventType,setEventType]=useState<'MEETING'|'WORKSHOP'|''>('WORKSHOP');
   const [title,setTitle]=useState('Northstar customer workshop'), [date,setDate]=useState('2026-10-15');
-  const [attendees,setAttendees]=useState(60), [budget,setBudget]=useState('4000');
-  const [standard,setStandard]=useState(50), [vegan,setVegan]=useState(10);
-  const [presentation,setPresentation]=useState(true), [livestream,setLivestream]=useState(true), [confirmed,setConfirmed]=useState(false);
+  const [attendees,setAttendees]=useState<number|''>(60), [budget,setBudget]=useState('4000');
+  const [standard,setStandard]=useState<number|''>(50), [vegan,setVegan]=useState<number|''>(10);
+  const [presentation,setPresentation]=useState<boolean|null>(true), [livestream,setLivestream]=useState<boolean|null>(true), [confirmed,setConfirmed]=useState(false);
   const event=events.find(e=>e.id===id), latest=event?.assessments[0], proposal=latest?.proposal;
   const isWorkshop=(event?.eventType||eventType)==='WORKSHOP';
   const previous=event?events.filter(e=>e.seriesId===event.seriesId&&e.revisionNumber<event.revisionNumber).sort((a,b)=>b.revisionNumber-a.revisionNumber)[0]:undefined;
   const assessing=busy==='Loomspan is assessing this request';
-  const invalidWorkshop=eventType==='WORKSHOP'&&(attendees%2!==0||attendees<2||standard+vegan!==attendees||(livestream&&!presentation));
+  const invalidWorkshop=eventType==='WORKSHOP'&&(Number(attendees)%2!==0||Number(attendees)<2||standard===''||vegan===''||Number(standard)+Number(vegan)!==Number(attendees)||(livestream&&!presentation));
+  const incomplete=!eventType||!title.trim()||!date||attendees===''||!budget||(eventType==='WORKSHOP'&&(presentation===null||livestream===null));
+  const source=event?intakes.find(i=>i.eventId===event.seriesId):intake;
   async function refresh() {
-    const [v,e]=await Promise.all([api<Venue>('/venue'),api<Event[]>('/events')]);
-    setVenue(v);setEvents(e);
+    const [v,e,i]=await Promise.all([api<Venue>('/venue'),api<Event[]>('/events'),api<Intake[]>('/intakes')]);
+    setVenue(v);setEvents(e);setIntakes(i);setIntake(previous=>previous?i.find(d=>d.id===previous.id)??previous:null);
   }
   useEffect(()=>{refresh().catch(e=>setError(e.message))},[]);
   async function run(label:string,action:()=>Promise<void>) {
@@ -79,21 +85,47 @@ function App() {
     setAttendees(type==='WORKSHOP'?60:20);setBudget(type==='WORKSHOP'?'4000':'500');
     setStandard(50);setVegan(10);setPresentation(true);setLivestream(true);
   }
+  function reviewIntake(draft:Intake) {
+    setIntake(draft);setConfirmed(false);
+    const r=draft.interpretation;
+    setTitle(r?.title??'');setDate(r?.eventDate??'');setEventType(r?.eventType??'');
+    setAttendees(r?.attendees??'');setBudget(r?.budgetCents==null?'':String(r.budgetCents/100));
+    setStandard(r?.standardLunches??'');setVegan(r?.veganLunches??'');
+    setPresentation(r?.presentation??null);setLivestream(r?.livestream??null);
+  }
+  async function interpret() {
+    setConfirmed(false);setIntake(null);
+    await run('Loomspan is interpreting the brief',async()=>{
+      const form=new FormData();form.append('brief',brief);form.append('referenceDate',referenceDate);if(agenda)form.append('agenda',agenda);
+      reviewIntake(await api<Intake>('/intakes',form));
+    });
+  }
   async function create() {
     await run('Saving request',async()=>{
       const workshop=eventType==='WORKSHOP';
-      const e=await api<Event>(editing?'/events/'+id+'/revisions':'/events',{title,eventDate:date,attendees,budgetCents:Math.round(Number(budget)*100),eventType,
+      const e=await api<Event>(editing?'/events/'+id+'/revisions':intake?'/intakes/'+intake.id+'/confirm':'/events',{title,eventDate:date,attendees:Number(attendees),budgetCents:Math.round(Number(budget)*100),eventType,
         standardLunches:workshop?standard:0,veganLunches:workshop?vegan:0,presentation:workshop&&presentation,livestream:workshop&&livestream});
-      setId(e.id);setEditing(false);
+      setId(e.id);setEditing(false);setIntake(null);
     });
   }
   const roomName=(roomId:string)=>venue?.rooms.find(r=>r.id===roomId)?.name||roomId;
   return <>
     <div className="banner">THE ANNEX DEMO <span>Real Loomspan assessment · Hibernate / H2 persistence · local demo</span></div>
-    <header><strong><i>A</i>The Annex</strong><span>Event operations</span><label className="identity">Demo identity — simulated login<select value={identity} disabled={!!busy} onChange={e=>{demoIdentity=e.target.value;setIdentity(e.target.value);setError("")}}><option value="alex">Alex · coordinator</option><option value="morgan">Morgan · manager</option></select></label><button disabled={!!busy} onClick={()=>{setId('');setEditing(false);setConfirmed(false);setError('')}}>New request</button></header>
+    <header><strong><i>A</i>The Annex</strong><span>Event operations</span><label className="identity">Demo identity — simulated login<select value={identity} disabled={!!busy} onChange={e=>{demoIdentity=e.target.value;setIdentity(e.target.value);setError("")}}><option value="alex">Alex · coordinator</option><option value="morgan">Morgan · manager</option></select></label><button disabled={!!busy} onClick={()=>{setId('');setIntake(null);chooseType('WORKSHOP');setEditing(false);setConfirmed(false);setError('')}}>New request</button></header>
     <main>
       <div className="heading"><div><p className="eyebrow">EVENT WORKSPACE</p><h1>{event?.title||'Plan an event'}</h1><p className="muted">{isWorkshop?'Two-room workshop · lunch and optional technical services':'Room-only meeting'} · 13:00–18:00 · Pacific time</p></div><button disabled={!!busy} onClick={()=>run('Refreshing',refresh)}>Refresh records</button></div>
       {error&&<div className="error" role="alert">{error}</div>}
+      {!event&&!editing&&<section className="brief-intake"><h2>Start from a brief</h2><p>Interpret a brief and optional historical agenda, then review the form. You can also fill the form directly.</p>
+        <form onSubmit={e=>{e.preventDefault();interpret()}}><fieldset disabled={!!busy}>
+          <label>Event brief<textarea required maxLength={6000} rows={4} value={brief} onChange={e=>setBrief(e.target.value)}/></label>
+          <div className="intake-inputs"><label>Reference date for relative phrases<input type="date" required value={referenceDate} onChange={e=>setReferenceDate(e.target.value)}/></label>
+          <label>Historical agenda (optional)<input type="file" accept="image/png,image/jpeg" onChange={e=>setAgenda(e.target.files?.[0]??null)}/></label></div>
+          <p className="muted">One PNG or JPEG, up to 2 MB. {agenda?'Selected: '+agenda.name:'No agenda selected.'} Each interpretation creates a new draft using the brief and selected file above.</p>
+          <button type="button" onClick={()=>run('Loading example agenda',async()=>{const r=await fetch('/examples/northstar-agenda.png');if(!r.ok)throw new Error('Example agenda is unavailable');setAgenda(new File([await r.blob()],'northstar-agenda.png',{type:'image/png'}))})}>Use example agenda</button>
+          <button type="submit" className="primary">Interpret with Loomspan</button>
+        </fieldset></form>
+        {intakes.some(i=>!i.eventId)&&<details><summary>Saved intake drafts</summary>{intakes.filter(i=>!i.eventId).map(i=><button key={i.id} disabled={!!busy} onClick={()=>{setBrief(i.brief);setReferenceDate(i.referenceDate);reviewIntake(i)}}>{i.referenceDate} · {i.status} · {i.brief.slice(0,55)}</button>)}</details>}
+      </section>}
       <div className="workspace">
         <aside>
           <section><h2>Confirmed request</h2>
@@ -104,29 +136,31 @@ function App() {
               <small>Revision {event.revisionNumber} · {event.current?"Current requirements":"Historical — unavailable for acceptance"}. Earlier requirements and proposals are preserved.</small><button disabled={!!busy||!event.current||event.assessments.some(a=>a.status==="BOOKED"||a.status==="RUNNING")} onClick={()=>{setTitle(event.title);setDate(event.eventDate);setAttendees(event.attendees);setBudget(String(event.budgetCents/100));setEventType(event.eventType);setStandard(event.standardLunches);setVegan(event.veganLunches);setPresentation(event.presentation);setLivestream(event.livestream);setConfirmed(false);setEditing(true)}}>Revise requirements</button>
             </>:<form onSubmit={e=>{e.preventDefault();create()}} onChange={()=>setConfirmed(false)}>
               <fieldset disabled={!!busy}>
-                <label>Event type<select disabled={editing} value={eventType} onChange={e=>chooseType(e.target.value as 'MEETING'|'WORKSHOP')}><option value="WORKSHOP">Workshop</option><option value="MEETING">Room-only meeting</option></select></label>
+                <label>Event type<select required disabled={editing} value={eventType} onChange={e=>intake?setEventType(e.target.value as 'MEETING'|'WORKSHOP'|''):chooseType(e.target.value as 'MEETING'|'WORKSHOP')}><option value="" disabled>Choose event type</option><option value="WORKSHOP">Workshop</option><option value="MEETING">Room-only meeting</option></select></label>
                 <label>Event title<input required maxLength={120} value={title} onChange={e=>setTitle(e.target.value)}/></label>
                 <label>Date<input type="date" required value={date} onChange={e=>setDate(e.target.value)}/></label>
-                <label>Attendees<input type="number" required min={isWorkshop?2:1} max={120} step={isWorkshop?2:1} value={attendees} onChange={e=>setAttendees(Number(e.target.value))}/></label>
+                <label>Attendees<input type="number" required min={isWorkshop?2:1} max={120} step={isWorkshop?2:1} value={attendees} onChange={e=>setAttendees(e.target.value===''?'':Number(e.target.value))}/></label>
                 <label>Budget (USD)<input type="number" required min="0.01" max="100000" step="0.01" value={budget} onChange={e=>setBudget(e.target.value)}/></label>
                 {isWorkshop&&<>
                   <p className="muted">Two equal discussion groups; one uses the plenary room. Theater seating throughout.</p>
-                  <label>Standard lunches<input type="number" required min={0} max={120} value={standard} onChange={e=>setStandard(Number(e.target.value))}/></label>
-                  <label>Vegan lunches<input type="number" required min={0} max={120} value={vegan} onChange={e=>setVegan(Number(e.target.value))}/></label>
-                  <small>{standard+vegan} lunches for {attendees} attendees. Counts must match; they do not automatically scale.</small>
-                  <label className="check"><input type="checkbox" checked={presentation} onChange={e=>{setPresentation(e.target.checked);if(!e.target.checked)setLivestream(false)}}/>Presentation kit</label>
-                  <label className="check"><input type="checkbox" checked={livestream} onChange={e=>{setLivestream(e.target.checked);if(e.target.checked)setPresentation(true)}}/>Livestream plenaries, including operator</label>
+                  <label>Standard lunches<input type="number" required min={0} max={120} value={standard} onChange={e=>setStandard(e.target.value===''?'':Number(e.target.value))}/></label>
+                  <label>Vegan lunches<input type="number" required min={0} max={120} value={vegan} onChange={e=>setVegan(e.target.value===''?'':Number(e.target.value))}/></label>
+                  <small>{standard===''||vegan===''?'Supply both lunch counts':Number(standard)+Number(vegan)+' lunches'} for {attendees} attendees. Counts must match; they do not automatically scale.</small>
+                  {intake?<><label>Presentation kit<select required value={presentation===null?'':String(presentation)} onChange={e=>{setPresentation(e.target.value==='true');if(e.target.value==='false')setLivestream(false)}}><option value="" disabled>Confirm yes or no</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <label>Livestream plenaries, including operator<select required value={livestream===null?'':String(livestream)} onChange={e=>{setLivestream(e.target.value==='true');if(e.target.value==='true')setPresentation(true)}}><option value="" disabled>Confirm yes or no</option><option value="true">Yes</option><option value="false">No</option></select></label></>:<><label className="check"><input type="checkbox" checked={presentation===true} onChange={e=>{setPresentation(e.target.checked);if(!e.target.checked)setLivestream(false)}}/>Presentation kit</label>
+                  <label className="check"><input type="checkbox" checked={livestream===true} onChange={e=>{setLivestream(e.target.checked);if(e.target.checked)setPresentation(true)}}/>Livestream plenaries, including operator</label></>}
                   <small>Lunch at 13:00. No AV in breakout rooms. Only standard/vegan portions are supported in this demo.</small>
                 </>}
               </fieldset>
               {invalidWorkshop&&<p className="error">Use an even attendance and meal counts that add up to it.</p>}
               <label className="check"><input type="checkbox" checked={confirmed} onChange={e=>{e.stopPropagation();setConfirmed(e.target.checked)}}/>I confirm these requirements{isWorkshop?', theater seating and the fixed workshop agenda':', with no catering or AV'}.</label>
-              <button className="primary" disabled={!confirmed||invalidWorkshop||!!busy}>{editing?"Save new revision":"Save request"}</button>{editing&&<button type="button" disabled={!!busy} onClick={()=>setEditing(false)}>Cancel revision</button>}
+              {intake&&<p className="muted">Confirmation accepts the supported requirements above and resolves the interpretation notes. Nothing is reserved yet.</p>}
+              <button className="primary" disabled={!confirmed||incomplete||invalidWorkshop||!!busy||!!intake&&intake.status!=='REVIEW'}>{editing?"Save new revision":"Save request"}</button>{editing&&<button type="button" disabled={!!busy} onClick={()=>setEditing(false)}>Cancel revision</button>}
             </form>}
           </section>
           <section><h2>Saved requests</h2>{events.length===0?<p className="muted">No requests yet.</p>:events.filter(e=>e.current).map(e=><button className={'request '+(id===e.id?'selected':'')} key={e.id} disabled={!!busy} onClick={()=>{setId(e.id);setEditing(false)}}><b>{e.title}</b><small>{e.eventDate} · revision {e.revisionNumber} · {e.attendees} people · {e.assessments[0]?.status||'Not assessed'}</small></button>)}</section>
         </aside>
-        <article>{event&&<section><h2>Requirement revisions</h2>{events.filter(e=>e.seriesId===event.seriesId).sort((a,b)=>b.revisionNumber-a.revisionNumber).map(e=><button key={e.id} disabled={!!busy||editing} className={e.id===id?"selected":""} onClick={()=>setId(e.id)}>Revision {e.revisionNumber}{e.current?" · current":" · historical"}</button>)}{!event.current&&<p className="muted">Historical proposals cannot be accepted. Open the current revision to assess or book.</p>}</section>}{event&&previous&&<RevisionComparison before={previous} after={event}/>}
+        <article>{source&&<IntakeSource draft={source}/>} {event&&<section><h2>Requirement revisions</h2>{events.filter(e=>e.seriesId===event.seriesId).sort((a,b)=>b.revisionNumber-a.revisionNumber).map(e=><button key={e.id} disabled={!!busy||editing} className={e.id===id?"selected":""} onClick={()=>setId(e.id)}>Revision {e.revisionNumber}{e.current?" · current":" · historical"}</button>)}{!event.current&&<p className="muted">Historical proposals cannot be accepted. Open the current revision to assess or book.</p>}</section>}{event&&previous&&<RevisionComparison before={previous} after={event}/>}
           <section aria-live="polite"><p className="eyebrow">{assessing?'ASSESSING':latest?.status||'ASSESSMENT'}</p><h2>{busy||(latest?.status==='BOOKED'?'Booking saved':latest?.status==='READY'?'A validated event proposal':latest?.status==='NO_OPTION'?'No option meets these requirements':latest?.status==='FAILED'?'Assessment needs attention':'Ready to investigate the venue')}</h2>
             {busy&&<p className="muted">Please wait. Assessment can take a few minutes. Resources are not held until acceptance succeeds.</p>}
             {!event?<p className="muted">Confirm and save the request to begin a real assessment.</p>:<>
@@ -155,7 +189,7 @@ function App() {
           <section><h2>Reservation schedule</h2><p className="muted">Includes setup and teardown · {venue?.timezone||'America/Los_Angeles'}</p><div className="schedule">{venue?.bookings.map(b=><div key={b.id}><b>{b.title}</b>{b.reservations.map(r=><span key={r.resourceId}>{r.name} · quantity {r.quantity}<small>{interval(r.startsAt,r.endsAt)}</small></span>)}</div>)}</div></section>
         </article>
       </div>
-      <footer>Real meeting and workshop assessment and booking. Requirement revisions preserve proposal history. Manager credits use real authorization with simulated demo identities. Attachment intake remains a future slice.</footer>
+      <footer>Brief and agenda interpretation requires human confirmation. Real meeting and workshop assessment and booking. Requirement revisions preserve proposal history. Manager credits use real authorization with simulated demo identities.</footer>
     </main>
   </>;
 }

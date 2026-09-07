@@ -43,6 +43,13 @@ interface ProposalRepository extends JpaRepository<Proposal, String>
 
 interface CreditRepository extends JpaRepository<RoomCredit,String> {}
 
+interface IntakeRepository extends JpaRepository<IntakeDraft,String> {
+    List<IntakeDraft> findAllByOrderByCreatedAtDesc();
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from IntakeDraft i where i.id = :id")
+    Optional<IntakeDraft> lockById(@Param("id") String id);
+}
+
 interface BookingRepository extends JpaRepository<Booking, String>
 {
     Optional<Booking> findByProposalId(String proposalId);

@@ -2,7 +2,7 @@
 
 ## Purpose and status
 
-This is the concrete content brief for wireframes, seed data, and implementation stories. It specifies the broader intended behavior. The room-only meeting and the confirmed workshop now have real application implementations, each returning one least-cost proposal. Confirmed requirement revisions and proposal comparison are implemented. Alternative cards, attachment intake and the generated agenda asset remain future work. Prices and venue rules below are fictional demo fixtures, not market estimates.
+This is the concrete content brief for wireframes, seed data, and implementation stories. It specifies the broader intended behavior. The room-only meeting and the confirmed workshop now have real application implementations, each returning one least-cost proposal. Confirmed requirement revisions and proposal comparison are implemented. Brief and agenda-image intake are implemented; see [intake-slice.md](intake-slice.md) for the concrete supported flow. Alternative cards and a generated agenda asset remain outside the current implementation. Prices and venue rules below are fictional demo fixtures, not market estimates.
 
 Read this with [scope and demonstration design](scope-and-demo-design.md). The main demonstration is one event request, two assessments, and one booking. Side branches exercise failure and permission states without expanding the product lifecycle.
 

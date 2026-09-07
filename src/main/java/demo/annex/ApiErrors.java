@@ -11,6 +11,8 @@ import java.util.Map;
 @RestControllerAdvice
 public class ApiErrors
 {
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<?> uploadTooLarge(Exception e){return ResponseEntity.status(413).body(Map.of("message","Upload one PNG or JPEG agenda of at most 2 MB."));}
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     ResponseEntity<?> denied(Exception e){return ResponseEntity.status(403).body(Map.of("message","Only Morgan, the demo manager, can approve a room credit. No credit was applied."));}
     @ExceptionHandler(ai.loomspan.api.SkillException.class)

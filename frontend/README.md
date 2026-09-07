@@ -9,3 +9,5 @@ Run Spring on port 8080, then `npm ci` and `npm run dev` here. Open the URL prin
 The form confirms immutable requirements for the fixed event block. Workshops add two equal breakout groups, standard/vegan lunch counts and optional presentation/livestream. Proposals show exact quote lines, supporting versions and resource reservations. The broader simulated wireframe in `prototype/` is outside this application build.
 
 Unbooked events can be revised through a prefilled form. Each revision requires explicit confirmation, preserves its predecessor, and can be freshly assessed. Revision navigation marks historical results, disables their assessment/acceptance actions, and compares stored costs. Accepted bookings cannot be revised.
+
+Brief and optional agenda intake call the real interpretEventBrief skill through Spring. The review form preserves missing values until explicit confirmation. Saved source briefs and image previews remain available with the event. Vite proxies /examples as well as /api so the included agenda works in development.

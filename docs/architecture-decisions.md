@@ -70,6 +70,6 @@ Record the framework commit used for each tested demo milestone. A SNAPSHOT vers
 
 ## Next implementation milestone
 
-Room-only and workshop assessment and booking are implemented. See [workshop-slice.md](workshop-slice.md) for the specialist contracts and migration/booking design. Requirement revisions and stored proposal comparison are implemented; see [revision-slice.md](revision-slice.md). Manager authorization is implemented through a restricted Java skill and simulated demo identities; see [manager-credit-slice.md](manager-credit-slice.md). Attachment intake remains later work.
+Room-only and workshop assessment and booking are implemented. See [workshop-slice.md](workshop-slice.md) for the specialist contracts and migration/booking design. Requirement revisions and stored proposal comparison are implemented; see [revision-slice.md](revision-slice.md). Manager authorization is implemented through a restricted Java skill and simulated demo identities; see [manager-credit-slice.md](manager-credit-slice.md). Brief and PNG/JPEG agenda intake are implemented through a direct YAML skill and a persisted human-review step; see [intake-slice.md](intake-slice.md).
 
 The application has not yet been published to its own GitHub repository. The source layout above is now implemented; framework artifacts are resolved normally from the local Maven repository.

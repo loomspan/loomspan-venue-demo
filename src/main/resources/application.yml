@@ -2,6 +2,10 @@ server:
   address: 127.0.0.1
   port: ${ANNEX_PORT:8080}
 spring:
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
   application:
     name: the-annex
   datasource:
@@ -24,6 +28,9 @@ loomspan:
       provider-retry:
         max-attempts: 2
   models:
+    intake:
+      connection: venue-model
+      provider-model: ${ANNEX_INTAKE_MODEL:gpt-4.1}
     planner:
       connection: venue-model
       provider-model: ${ANNEX_MODEL:gpt-4.1}

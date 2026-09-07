@@ -53,3 +53,5 @@ The packaged application was restarted after the HTTP booking: the same booking 
 The third slice implements revisions for unbooked events, stored cost comparison, and stale-proposal/concurrent-booking guards. See [revision-slice.md](revision-slice.md).
 
 The fourth slice adds the restricted Java skill applyRoomCredit, simulated demo identities, Spring method-security enforcement, persistent fixed credits and adjusted booking totals. See [manager-credit-slice.md](manager-credit-slice.md).
+
+The fifth slice adds direct YAML brief/agenda interpretation, persisted intake drafts, image attachment handling, editable review and transactional confirmation. See [intake-slice.md](intake-slice.md).
