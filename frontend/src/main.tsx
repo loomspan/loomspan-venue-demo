@@ -5,7 +5,8 @@ import './style.css';
 type Reservation = {resourceId:string; name:string; quantity:number; startsAt:string; endsAt:string};
 type Booking = {id:string; roomId:string; title:string; startsAt:string; endsAt:string; totalCents:number; reservations:Reservation[]};
 type Allocation = {resourceId:string; name:string; kind:string; quantity:number; priceUnits:number; unitPriceCents:number; totalCents:number; version:number; startsAt:string; endsAt:string; assignedRoomId:string|null};
-type Proposal = {id:string; roomId:string; roomName:string; totalCents:number; roomVersion:number; booking:Booking|null; allocations:Allocation[]};
+type Credit = {amountCents:number; approvedBy:string; approvedAt:string};
+type Proposal = {credit:Credit|null; payableTotalCents:number;id:string; roomId:string; roomName:string; totalCents:number; roomVersion:number; booking:Booking|null; allocations:Allocation[]};
 type Assessment = {id:string; status:string; summary:string; openQuestions:string[]; sessionId:string|null; proposal:Proposal|null};
 type Event = {id:string; title:string; eventDate:string; attendees:number; budgetCents:number; assessments:Assessment[]; eventType:'MEETING'|'WORKSHOP'; standardLunches:number; veganLunches:number; presentation:boolean; livestream:boolean; seriesId:string; revisionNumber:number; current:boolean};
 type Room = {id:string; name:string; capacity:number; priceCents:number; version:number};
@@ -13,8 +14,9 @@ type Resource = {id:string; name:string; kind:string; stock:number; priceCents:n
 type Venue = {name:string; rooms:Room[]; bookings:Booking[]; resources:Resource[]; timezone:string};
 const money = (c:number) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(c/100);
 const interval = (start:string,end:string) => `${start.replace('T',' ')} → ${end.slice(11,16)}`;
+let demoIdentity='alex';
 async function api<T>(path:string,body?:unknown):Promise<T> {
-  const response = await fetch('/api'+path,body===undefined?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const response = await fetch('/api'+path,body===undefined?undefined:{method:'POST',headers:{'Content-Type':'application/json','X-Annex-Demo-User':demoIdentity},body:JSON.stringify(body)});
   let data;
   try {data=await response.json()} catch {throw new Error('The server returned an unreadable response. Check that Spring is running.')}
   if(!response.ok) throw new Error(data.message||'Request failed');
@@ -41,12 +43,13 @@ function RevisionComparison({before,after}:{before:Event;after:Event}) {
     {oldProposal&&newProposal?<><div className="table-wrap"><table><caption>Validated proposal costs</caption><thead><tr><th>Item</th><th>Before</th><th>After</th><th>Change</th></tr></thead><tbody>
       <tr><td>Room assignment</td><td>{oldProposal.allocations.filter(a=>a.kind==='ROOM').map(a=>a.name).join(' + ')||oldProposal.roomName}</td><td>{newProposal.allocations.filter(a=>a.kind==='ROOM').map(a=>a.name).join(' + ')||newProposal.roomName}</td><td>—</td></tr>
       {groups.map(([name,match])=><tr key={name}><td>{name}</td><td>{money(amount(oldProposal,match))}</td><td>{money(amount(newProposal,match))}</td><td>{signed(amount(newProposal,match)-amount(oldProposal,match))}</td></tr>)}
-      <tr><th>Total</th><th>{money(oldProposal.totalCents)}</th><th>{money(newProposal.totalCents)}</th><th>{signed(newProposal.totalCents-oldProposal.totalCents)}</th></tr>
+      <tr><td>Manager credit</td><td>{signed(-(oldProposal.credit?.amountCents||0))}</td><td>{signed(-(newProposal.credit?.amountCents||0))}</td><td>{signed((oldProposal.credit?.amountCents||0)-(newProposal.credit?.amountCents||0))}</td></tr><tr><th>Total payable</th><th>{money(oldProposal.payableTotalCents)}</th><th>{money(newProposal.payableTotalCents)}</th><th>{signed(newProposal.payableTotalCents-oldProposal.payableTotalCents)}</th></tr>
     </tbody></table></div><small>Compares stored quotes, without recalculating historical prices. Earlier proposals are unavailable for acceptance.</small></>:<p className="muted">A validated proposal is needed for both revisions to compare costs. Assess the current revision; earlier results remain in history.</p>}
   </section>;
 }
 function App() {
   const [venue,setVenue]=useState<Venue|null>(null), [events,setEvents]=useState<Event[]>([]);
+  const [identity,setIdentity]=useState('alex'),[creditSession,setCreditSession]=useState<{proposalId:string;sessionId:string}|null>(null);
   const [editing,setEditing]=useState(false);
   const [id,setId]=useState(''), [busy,setBusy]=useState(''), [error,setError]=useState('');
   const [eventType,setEventType]=useState<'MEETING'|'WORKSHOP'>('WORKSHOP');
@@ -87,7 +90,7 @@ function App() {
   const roomName=(roomId:string)=>venue?.rooms.find(r=>r.id===roomId)?.name||roomId;
   return <>
     <div className="banner">THE ANNEX DEMO <span>Real Loomspan assessment · Hibernate / H2 persistence · local demo</span></div>
-    <header><strong><i>A</i>The Annex</strong><span>Event operations</span><button disabled={!!busy} onClick={()=>{setId('');setEditing(false);setConfirmed(false);setError('')}}>New request</button></header>
+    <header><strong><i>A</i>The Annex</strong><span>Event operations</span><label className="identity">Demo identity — simulated login<select value={identity} disabled={!!busy} onChange={e=>{demoIdentity=e.target.value;setIdentity(e.target.value);setError("")}}><option value="alex">Alex · coordinator</option><option value="morgan">Morgan · manager</option></select></label><button disabled={!!busy} onClick={()=>{setId('');setEditing(false);setConfirmed(false);setError('')}}>New request</button></header>
     <main>
       <div className="heading"><div><p className="eyebrow">EVENT WORKSPACE</p><h1>{event?.title||'Plan an event'}</h1><p className="muted">{isWorkshop?'Two-room workshop · lunch and optional technical services':'Room-only meeting'} · 13:00–18:00 · Pacific time</p></div><button disabled={!!busy} onClick={()=>run('Refreshing',refresh)}>Refresh records</button></div>
       {error&&<div className="error" role="alert">{error}</div>}
@@ -133,12 +136,12 @@ function App() {
                 <h3>{proposal.allocations.length?proposal.allocations.filter(a=>a.kind==='ROOM').map(a=>a.name).join(' + '):proposal.roomName}</h3>
                 <p>{event.attendees} attendees · theater layout{isWorkshop&&` · plenary in ${proposal.roomName}`}</p>
                 {proposal.allocations.length>0&&<div className="table-wrap"><table><caption>Validated quote</caption><thead><tr><th>Item</th><th>Calculation</th><th>Amount</th></tr></thead><tbody>{proposal.allocations.map(a=><tr key={a.resourceId}><td>{a.name}</td><td>{a.kind==='ROOM'?'Flat block':a.kind==='STREAM_OPERATOR'?`${a.priceUnits} hours × ${money(a.unitPriceCents)}`:`${a.priceUnits} × ${money(a.unitPriceCents)}`}</td><td>{money(a.totalCents)}</td></tr>)}</tbody></table></div>}
-                <strong>{money(proposal.totalCents)}</strong><small>{money(event.budgetCents-proposal.totalCents)} below budget</small>
+                <p>Original quote: {money(proposal.totalCents)}</p>{proposal.credit&&<p className="success">Manager room credit: −{money(proposal.credit.amountCents)} · approved by {proposal.credit.approvedBy} on {proposal.credit.approvedAt.replace("T"," ")}</p>}<strong>{money(proposal.payableTotalCents)}</strong><small>{money(event.budgetCents-proposal.payableTotalCents)} below budget</small>
                 <details><summary>Supporting records and reservations</summary>
                   {proposal.allocations.length?proposal.allocations.map(a=><p key={a.resourceId}><b>{a.resourceId}</b> · version {a.version} · quantity {a.quantity}<br/>{interval(a.startsAt,a.endsAt)}{a.assignedRoomId&&a.kind!=='ROOM'&&` · ${roomName(a.assignedRoomId)}`}</p>):<p>{proposal.roomId} · room version {proposal.roomVersion} · {event.eventDate} · 12:30–18:30.</p>}
                   <p>Acceptance rechecks all selected resources under database locks. A conflict saves no partial booking.</p>
                 </details>
-                {proposal.booking?<p className="success">Booking {proposal.booking.id} is persisted. Refreshing or restarting retains it.</p>:<button className="primary" disabled={!!busy||editing||!event.current||latest?.status!=='READY'} onClick={()=>run('Reserving resources',async()=>{await api('/proposals/'+proposal.id+'/accept',{})})}>Accept & reserve {isWorkshop?'all resources':'room'}</button>}
+                {!proposal.booking&&event.current&&<div className="credit-action"><p className="muted">One $100 manager credit when rooms total at least $500. Alex can try the action to see server-enforced denial.</p><button disabled={!!busy||editing||latest?.status!=="READY"||!!proposal.credit} onClick={()=>run("Requesting manager credit",async()=>{const result=await api<{credit:Credit;sessionId:string}>("/proposals/"+proposal.id+"/room-credit",{});setCreditSession({proposalId:proposal.id,sessionId:result.sessionId})})}>{proposal.credit?"Room credit applied":"Apply $100 room credit"}</button>{creditSession?.proposalId===proposal.id&&<small className="session">Credit skill session: {creditSession.sessionId}</small>}</div>}{proposal.booking?<p className="success">Booking {proposal.booking.id} is persisted. Refreshing or restarting retains it.</p>:<button className="primary" disabled={!!busy||editing||!event.current||latest?.status!=='READY'} onClick={()=>run('Reserving resources',async()=>{await api('/proposals/'+proposal.id+'/accept',{})})}>Accept & reserve {isWorkshop?'all resources':'room'}</button>}
               </div>}
               {latest?.sessionId&&<small className="session">Loomspan session: {latest.sessionId}</small>}
               <button disabled={!!busy||editing||!event.current||latest?.status==='BOOKED'||latest?.status==='RUNNING'} onClick={()=>run('Loomspan is assessing this request',async()=>{await api('/events/'+id+'/assessments',{})})}>{latest?'Run fresh assessment':'Assess with Loomspan'}</button>
@@ -152,10 +155,8 @@ function App() {
           <section><h2>Reservation schedule</h2><p className="muted">Includes setup and teardown · {venue?.timezone||'America/Los_Angeles'}</p><div className="schedule">{venue?.bookings.map(b=><div key={b.id}><b>{b.title}</b>{b.reservations.map(r=><span key={r.resourceId}>{r.name} · quantity {r.quantity}<small>{interval(r.startsAt,r.endsAt)}</small></span>)}</div>)}</div></section>
         </article>
       </div>
-      <footer>Real meeting and workshop assessment and booking. Requirement revisions preserve proposal history. Attachment intake and manager adjustments remain future slices.</footer>
+      <footer>Real meeting and workshop assessment and booking. Requirement revisions preserve proposal history. Manager credits use real authorization with simulated demo identities. Attachment intake remains a future slice.</footer>
     </main>
   </>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);
-
-

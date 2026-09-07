@@ -11,6 +11,14 @@ import java.util.Map;
 @RestControllerAdvice
 public class ApiErrors
 {
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ResponseEntity<?> denied(Exception e){return ResponseEntity.status(403).body(Map.of("message","Only Morgan, the demo manager, can approve a room credit. No credit was applied."));}
+    @ExceptionHandler(ai.loomspan.api.SkillException.class)
+    ResponseEntity<?> skillFailure(ai.loomspan.api.SkillException e){
+        for(Throwable cause=e;cause!=null;cause=cause.getCause())
+            if(cause instanceof ResponseStatusException domain) return domain(domain);
+        return ResponseEntity.status(502).body(Map.of("message","The credit skill could not complete. Refresh the proposal before retrying."));
+    }
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<?> domain(ResponseStatusException e)
     {

@@ -2,7 +2,7 @@
 
 A self-contained event operations demo for one venue, built to show how Loomspan combines model-driven planning with deterministic application services.
 
-**Status:** real room-only and workshop assessment and booking are implemented. Workshops combine space, catering and technical specialists into a validated proposal with atomic resource reservations. Unbooked events support confirmed requirement revisions and stored proposal comparison. Attachment intake and role-based adjustments remain future slices. The separate hosted wireframe illustrates the broader concept.
+**Status:** real room-only and workshop assessment and booking are implemented. Workshops combine space, catering and technical specialists into a validated proposal with atomic resource reservations. Unbooked events support confirmed requirement revisions and stored proposal comparison. A manager-only fixed room credit demonstrates authorization. Attachment intake remains a future slice. The separate hosted wireframe illustrates the broader concept.
 
 ## Run the demo
 
@@ -23,7 +23,7 @@ Start with the default **60-person workshop** on October 15, 2026: 50 standard l
 
 Reservations persist in `data/annex.mv.db`. A booking affects later assessments on the same date. Use another date or explicitly reset for a repeat demonstration. V3/V4 upgrade existing databases and retain prior bookings and requirements.
 
-The demo uses a fixed 13:00–18:00 event block, with 12:30–18:30 room/equipment/operator reservations and 12:30–13:30 catering reservations. Workshops require two equal breakout groups and lunch counts matching attendance. One least-cost proposal is returned per assessment. There is no authentication yet; the server binds to loopback. The manager scenario in the hosted wireframe remains a simulation. See [the workshop slice](docs/workshop-slice.md) for contracts and acceptance criteria.
+The demo uses a fixed 13:00–18:00 event block, with 12:30–18:30 room/equipment/operator reservations and 12:30–13:30 catering reservations. Workshops require two equal breakout groups and lunch counts matching attendance. One least-cost proposal is returned per assessment. The server binds to loopback. A labeled demo identity selector simulates Alex (coordinator) and Morgan (manager); Spring Security and Loomspan enforce the manager-only credit. This selector is not production login. See [the workshop slice](docs/workshop-slice.md) for contracts and acceptance criteria.
 
 The standard Maven build installs frontend dependencies, builds React, and includes the UI in the Spring JAR. No Maven profile is needed. Node.js and npm must be available when building; running the packaged JAR only requires Java and configured model access.
 
@@ -32,6 +32,10 @@ For development, run `./mvnw spring-boot:run` and, separately, `npm ci` then `np
 ## Revise an unbooked workshop
 
 Before accepting the 60-person proposal, choose **Revise requirements**, change attendance to 90, lunch counts to 75 standard / 15 vegan, and clear livestream. Confirm and save, then assess again. The comparison shows **$2,780 → $3,320 (+$540)** and the change from Birch + Cedar to Alder + Birch. Historical proposals cannot be accepted. Booked events cannot be revised. See [the revision slice](docs/revision-slice.md) for scope and concurrency rules.
+
+## Try manager authorization
+
+On a current unbooked proposal, try **Apply $100 room credit** as Alex to see denial. Switch the **Demo identity** selector to Morgan and repeat to approve one fixed credit when the room subtotal is at least $500. The $3,320 workshop becomes **$3,220 payable**, while preserving the original quote. See [the manager-credit slice](docs/manager-credit-slice.md). Identity selection is a local login simulation, not real user authentication.
 
 ## Tests and reset
 
@@ -74,7 +78,7 @@ The next assessment uses the updated facts. Viewers compare proposals and inspec
 - **Attachments and model selection:** a supplied agenda adds intake context, using a compatible model when needed.
 - **Authorization and observability:** restricted adjustments, bounded execution, validation failures, and nested traces are inspectable.
 
-The current app demonstrates planning, specialist hierarchy, Java/YAML composition, concurrency, structured results and transactional booking. Attachments and role-based adjustments remain planned. Framework details must match the selected Loomspan dependency version.
+The current app demonstrates planning, specialist hierarchy, Java/YAML composition, concurrency, structured results and transactional booking. Attachments remain planned; the manager-credit branch now demonstrates role-based authorization. Framework details must match the selected Loomspan dependency version.
 
 ## Deliberately small
 
@@ -106,6 +110,3 @@ The completed demo will live in its own GitHub repository, independent of the fr
 ## Related framework
 
 [Loomspan Framework](https://github.com/loomspan/loomspan-framework), with the sibling checkout at `../loomspan-framework` used as the current design reference.
-
-
-

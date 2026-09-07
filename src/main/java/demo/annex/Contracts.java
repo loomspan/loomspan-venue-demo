@@ -70,7 +70,9 @@ public final class Contracts
     {
     }
 
-    public record ProposalView(String id, String roomId, String roomName, int totalCents, long roomVersion, BookingView booking, List<Allocation> allocations)
+    public record CreditView(int amountCents,String approvedBy,LocalDateTime approvedAt) {}
+
+    public record ProposalView(String id, String roomId, String roomName, int totalCents, long roomVersion, BookingView booking, List<Allocation> allocations, CreditView credit, int payableTotalCents)
     {
     }
 

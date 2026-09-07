@@ -10,6 +10,8 @@ import static demo.annex.Contracts.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import tools.jackson.databind.ObjectMapper;
+import jakarta.annotation.security.RolesAllowed;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Service
 @Transactional
@@ -25,8 +27,9 @@ public class EventStore
     private final ResourceRepository resources;
     private final ReservationRepository reservations;
     private final ObjectMapper mapper;
+    private final CreditRepository credits;
 
-    public EventStore(EventRepository events, AssessmentRepository assessments, ProposalRepository proposals, RoomRepository rooms, BookingRepository bookings, VenueService venue, WorkshopService workshop, ResourceRepository resources, ReservationRepository reservations, ObjectMapper mapper)
+    public EventStore(EventRepository events, AssessmentRepository assessments, ProposalRepository proposals, RoomRepository rooms, BookingRepository bookings, VenueService venue, WorkshopService workshop, ResourceRepository resources, ReservationRepository reservations, ObjectMapper mapper, CreditRepository credits)
     {
         this.events = events;
         this.assessments = assessments;
@@ -38,6 +41,7 @@ public class EventStore
         this.resources = resources;
         this.reservations = reservations;
         this.mapper = mapper;
+        this.credits = credits;
     }
 
     static String id()
@@ -287,7 +291,7 @@ public class EventStore
         b.title = event.title;
         b.startsAt = event.startsAt();
         b.endsAt = event.endsAt();
-        b.totalCents = p.totalCents;
+        b.totalCents = p.totalCents - credits.findById(p.id).map(c -> c.amountCents).orElse(0);
         bookings.saveAndFlush(b);
         for (var line : allocation)
         {
@@ -310,6 +314,25 @@ public class EventStore
         return new ResponseStatusException(CONFLICT, "Price or availability changed. No booking was created; run a fresh assessment.");
     }
 
+    @RolesAllowed("MANAGER")
+    public CreditView applyRoomCredit(String proposalId)
+    {
+        Proposal p=proposals.findById(proposalId).orElseThrow(()->new ResponseStatusException(NOT_FOUND,"Proposal not found"));
+        Assessment initial=assessments.findById(p.assessmentId).orElseThrow();
+        EventRequest event=lockCurrent(initial.eventId);
+        Assessment a=assessments.lockById(p.assessmentId).orElseThrow();
+        if(!a.status.equals("READY")||!bookings.findForSeries(event.seriesId).isEmpty())
+            throw new ResponseStatusException(CONFLICT,"Only a current unbooked proposal can receive a credit.");
+        int roomSubtotal=p.allocationJson==null?p.totalCents:allocations(p).stream().filter(line->line.kind().equals("ROOM")).mapToInt(Allocation::totalCents).sum();
+        if(roomSubtotal<50000) throw new ResponseStatusException(CONFLICT,"The room subtotal must be at least $500 for this credit.");
+        RoomCredit credit=credits.findById(p.id).orElseGet(()->{
+            RoomCredit c=new RoomCredit();c.proposalId=p.id;c.amountCents=10000;c.approvedBy=SecurityContextHolder.getContext().getAuthentication().getName();c.approvedAt=LocalDateTime.now();return credits.saveAndFlush(c);
+        });
+        return creditView(credit);
+    }
+
+    private CreditView creditView(RoomCredit c) {return new CreditView(c.amountCents,c.approvedBy,c.approvedAt);}
+
     private List<Allocation> allocations(Proposal p)
     {
         return p.allocationJson == null ? List.of() : Arrays.asList(mapper.readValue(p.allocationJson, Allocation[].class));
@@ -329,7 +352,7 @@ public class EventStore
 
     private AssessmentView view(Assessment a)
     {
-        ProposalView p = proposals.findByAssessmentId(a.id).map(proposal -> new ProposalView(proposal.id, proposal.roomId, rooms.findById(proposal.roomId).orElseThrow().name, proposal.totalCents, proposal.roomVersion, bookings.findByProposalId(proposal.id).map(venue::view).orElse(null), allocations(proposal))).orElse(null);
+        ProposalView p = proposals.findByAssessmentId(a.id).map(proposal -> new ProposalView(proposal.id, proposal.roomId, rooms.findById(proposal.roomId).orElseThrow().name, proposal.totalCents, proposal.roomVersion, bookings.findByProposalId(proposal.id).map(venue::view).orElse(null), allocations(proposal), credits.findById(proposal.id).map(this::creditView).orElse(null), proposal.totalCents-credits.findById(proposal.id).map(c->c.amountCents).orElse(0))).orElse(null);
         return new AssessmentView(a.id, a.status, a.summary, a.questions.isBlank() ? List.of() : Arrays.asList(a.questions.split("\n")), a.sessionId, a.createdAt, p);
     }
 }

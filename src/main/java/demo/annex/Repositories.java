@@ -41,6 +41,8 @@ interface ProposalRepository extends JpaRepository<Proposal, String>
     Optional<Proposal> findByAssessmentId(String assessmentId);
 }
 
+interface CreditRepository extends JpaRepository<RoomCredit,String> {}
+
 interface BookingRepository extends JpaRepository<Booking, String>
 {
     Optional<Booking> findByProposalId(String proposalId);
